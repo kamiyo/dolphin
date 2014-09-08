@@ -29,27 +29,37 @@ public:
 	virtual bool Start() { return false; }
 	virtual void SetVolume(int) {}
 	virtual void SoundLoop() {}
+	virtual float GetVolume() { return 0; }
 	virtual void Stop() {}
 	virtual void Update() {}
 	virtual void Clear(bool mute) { m_muted = mute; }
 	bool IsMuted() const { return m_muted; }
-	virtual void StartLogAudio(const char *filename) {
-		if (! m_logAudio) {
+
+	virtual void StartLogAudio(const std::string& filename)
+	{
+		if (! m_logAudio)
+		{
 			m_logAudio = true;
 			g_wave_writer.Start(filename, m_mixer->GetSampleRate());
 			g_wave_writer.SetSkipSilence(false);
 			NOTICE_LOG(DSPHLE, "Starting Audio logging");
-		} else {
+		}
+		else
+		{
 			WARN_LOG(DSPHLE, "Audio logging already started");
 		}
 	}
 
-	virtual void StopLogAudio() {
-		if (m_logAudio) {
+	virtual void StopLogAudio()
+	{
+		if (m_logAudio)
+		{
 			m_logAudio = false;
 			g_wave_writer.Stop();
 			NOTICE_LOG(DSPHLE, "Stopping Audio logging");
-		} else {
+		}
+		else
+		{
 			WARN_LOG(DSPHLE, "Audio logging already stopped");
 		}
 	}

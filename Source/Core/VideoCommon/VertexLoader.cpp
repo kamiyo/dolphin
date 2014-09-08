@@ -374,10 +374,41 @@ static void LOADERDECL UpdateBoundingBox()
 	{
 		m = (p1.x - p0.x) ? ((p1.y - p0.y) / (p1.x - p0.x)) : highNum;
 		c = p0.y - (m * p0.x);
-		if (i0 & 1) { s = (s32)(c + roundUp); if (s >= 0 && s <= 479) left = 0;   top = std::min(s, top);  bottom = std::max(s, bottom); }
-		if (i0 & 2) { s = (s32)((-c / m) + roundUp); if (s >= 0 && s <= 607) top = 0;   left = std::min(s, left); right = std::max(s, right); }
-		if (i0 & 4) { s = (s32)((m * 607) + c + roundUp); if (s >= 0 && s <= 479) right = 607; top = std::min(s, top);  bottom = std::max(s, bottom); }
-		if (i0 & 8) { s = (s32)(((479 - c) / m) + roundUp); if (s >= 0 && s <= 607) bottom = 479; left = std::min(s, left); right = std::max(s, right); }
+		if (i0 & 1)
+		{
+			s = (s32)(c + roundUp);
+			if (s >= 0 && s <= 479)
+				left = 0;
+			top = std::min(s, top);
+			bottom = std::max(s, bottom);
+		}
+
+		if (i0 & 2)
+		{
+			s = (s32)((-c / m) + roundUp);
+			if (s >= 0 && s <= 607)
+				top = 0;
+			left = std::min(s, left);
+			right = std::max(s, right);
+		}
+
+		if (i0 & 4)
+		{
+			s = (s32)((m * 607) + c + roundUp);
+			if (s >= 0 && s <= 479)
+				right = 607;
+			top = std::min(s, top);
+			bottom = std::max(s, bottom);
+		}
+
+		if (i0 & 8)
+		{
+			s = (s32)(((479 - c) / m) + roundUp);
+			if (s >= 0 && s <= 607)
+				bottom = 479;
+			left = std::min(s, left);
+			right = std::max(s, right);
+		}
 	}
 
 	// Only check other lines if we are dealing with a triangle
@@ -388,10 +419,41 @@ static void LOADERDECL UpdateBoundingBox()
 		{
 			m = (p2.x - p1.x) ? ((p2.y - p1.y) / (p2.x - p1.x)) : highNum;
 			c = p1.y - (m * p1.x);
-			if (i1 & 1) { s = (s32)(c + roundUp); if (s >= 0 && s <= 479) left = 0;   top = std::min(s, top);  bottom = std::max(s, bottom); }
-			if (i1 & 2) { s = (s32)((-c / m) + roundUp); if (s >= 0 && s <= 607) top = 0;   left = std::min(s, left); right = std::max(s, right); }
-			if (i1 & 4) { s = (s32)((m * 607) + c + roundUp); if (s >= 0 && s <= 479) right = 607; top = std::min(s, top);  bottom = std::max(s, bottom); }
-			if (i1 & 8) { s = (s32)(((479 - c) / m) + roundUp); if (s >= 0 && s <= 607) bottom = 479; left = std::min(s, left); right = std::max(s, right); }
+			if (i1 & 1)
+			{
+				s = (s32)(c + roundUp);
+				if (s >= 0 && s <= 479)
+					left = 0;
+				top = std::min(s, top);
+				bottom = std::max(s, bottom);
+			}
+
+			if (i1 & 2)
+			{
+				s = (s32)((-c / m) + roundUp);
+				if (s >= 0 && s <= 607)
+					top = 0;
+				left = std::min(s, left);
+				right = std::max(s, right);
+			}
+
+			if (i1 & 4)
+			{
+				s = (s32)((m * 607) + c + roundUp);
+				if (s >= 0 && s <= 479)
+					right = 607;
+				top = std::min(s, top);
+				bottom = std::max(s, bottom);
+			}
+
+			if (i1 & 8)
+			{
+				s = (s32)(((479 - c) / m) + roundUp);
+				if (s >= 0 && s <= 607)
+					bottom = 479;
+				left = std::min(s, left);
+				right = std::max(s, right);
+			}
 		}
 
 		// Third line intersects
@@ -399,10 +461,41 @@ static void LOADERDECL UpdateBoundingBox()
 		{
 			m = (p2.x - p0.x) ? ((p2.y - p0.y) / (p2.x - p0.x)) : highNum;
 			c = p0.y - (m * p0.x);
-			if (i2 & 1) { s = (s32)(c + roundUp); if (s >= 0 && s <= 479) left = 0;   top = std::min(s, top);  bottom = std::max(s, bottom); }
-			if (i2 & 2) { s = (s32)((-c / m) + roundUp); if (s >= 0 && s <= 607) top = 0;   left = std::min(s, left); right = std::max(s, right); }
-			if (i2 & 4) { s = (s32)((m * 607) + c + roundUp); if (s >= 0 && s <= 479) right = 607; top = std::min(s, top);  bottom = std::max(s, bottom); }
-			if (i2 & 8) { s = (s32)(((479 - c) / m) + roundUp); if (s >= 0 && s <= 607) bottom = 479; left = std::min(s, left); right = std::max(s, right); }
+			if (i2 & 1)
+			{
+				s = (s32)(c + roundUp);
+				if (s >= 0 && s <= 479)
+					left = 0;
+				top = std::min(s, top);
+				bottom = std::max(s, bottom);
+			}
+
+			if (i2 & 2)
+			{
+				s = (s32)((-c / m) + roundUp);
+				if (s >= 0 && s <= 607)
+					top = 0;
+				left = std::min(s, left);
+				right = std::max(s, right);
+			}
+
+			if (i2 & 4)
+			{
+				s = (s32)((m * 607) + c + roundUp);
+				if (s >= 0 && s <= 479)
+					right = 607;
+				top = std::min(s, top);
+				bottom = std::max(s, bottom);
+			}
+
+			if (i2 & 8)
+			{
+				s = (s32)(((479 - c) / m) + roundUp);
+				if (s >= 0 && s <= 607)
+					bottom = 479;
+				left = std::min(s, left);
+				right = std::max(s, right);
+			}
 		}
 	}
 
@@ -518,14 +611,11 @@ void VertexLoader::CompileVertexTranslator()
 #endif
 
 	// Colors
-	const u32 col[2] = {m_VtxDesc.Color0, m_VtxDesc.Color1};
+	const u64 col[2] = {m_VtxDesc.Color0, m_VtxDesc.Color1};
 	// TextureCoord
-	// Since m_VtxDesc.Text7Coord is broken across a 32 bit word boundary, retrieve its value manually.
-	// If we didn't do this, the vertex format would be read as one bit offset from where it should be, making
-	// 01 become 00, and 10/11 become 01
-	const u32 tc[8] = {
+	const u64 tc[8] = {
 		m_VtxDesc.Tex0Coord, m_VtxDesc.Tex1Coord, m_VtxDesc.Tex2Coord, m_VtxDesc.Tex3Coord,
-		m_VtxDesc.Tex4Coord, m_VtxDesc.Tex5Coord, m_VtxDesc.Tex6Coord, (const u32)((m_VtxDesc.Hex >> 31) & 3)
+		m_VtxDesc.Tex4Coord, m_VtxDesc.Tex5Coord, m_VtxDesc.Tex6Coord, m_VtxDesc.Tex7Coord
 	};
 
 	u32 components = 0;
@@ -583,7 +673,7 @@ void VertexLoader::CompileVertexTranslator()
 		{
 			Host_SysMessage(
 				StringFromFormat("VertexLoader_Normal::GetFunction(%i %i %i %i) returned zero!",
-				m_VtxDesc.Normal, m_VtxAttr.NormalFormat,
+				(u32)m_VtxDesc.Normal, m_VtxAttr.NormalFormat,
 				m_VtxAttr.NormalElements, m_VtxAttr.NormalIndex3).c_str());
 		}
 		WriteCall(pFunc);
@@ -677,7 +767,7 @@ void VertexLoader::CompileVertexTranslator()
 		}
 		else
 		{
-			_assert_msg_(VIDEO, DIRECT <= tc[i] && tc[i] <= INDEX16, "Invalid texture coordinates!\n(tc[i] = %d)", tc[i]);
+			_assert_msg_(VIDEO, DIRECT <= tc[i] && tc[i] <= INDEX16, "Invalid texture coordinates!\n(tc[i] = %d)", (u32)tc[i]);
 			_assert_msg_(VIDEO, FORMAT_UBYTE <= format && format <= FORMAT_FLOAT, "Invalid texture coordinates format!\n(format = %d)", format);
 			_assert_msg_(VIDEO, 0 <= elements && elements <= 1, "Invalid number of texture coordinates elements!\n(elements = %d)", elements);
 
@@ -883,7 +973,8 @@ void VertexLoader::SetVAT(const VAT& vat)
 	m_VtxAttr.texCoord[7].Format   = vat.g2.Tex7CoordFormat;
 	m_VtxAttr.texCoord[7].Frac     = vat.g2.Tex7Frac;
 
-	if (!m_VtxAttr.ByteDequant) {
+	if (!m_VtxAttr.ByteDequant)
+	{
 		ERROR_LOG(VIDEO, "ByteDequant is set to zero");
 	}
 };
@@ -912,7 +1003,7 @@ void VertexLoader::AppendToString(std::string *dest) const
 	};
 
 	dest->append(StringFromFormat("%ib skin: %i P: %i %s-%s ",
-		m_VertexSize, m_VtxDesc.PosMatIdx,
+		m_VertexSize, (u32)m_VtxDesc.PosMatIdx,
 		m_VtxAttr.PosElements ? 3 : 2, posMode[m_VtxDesc.Position], posFormats[m_VtxAttr.PosFormat]));
 
 	if (m_VtxDesc.Normal)
@@ -921,7 +1012,7 @@ void VertexLoader::AppendToString(std::string *dest) const
 			m_VtxAttr.NormalElements, posMode[m_VtxDesc.Normal], posFormats[m_VtxAttr.NormalFormat]));
 	}
 
-	u32 color_mode[2] = {m_VtxDesc.Color0, m_VtxDesc.Color1};
+	u64 color_mode[2] = {m_VtxDesc.Color0, m_VtxDesc.Color1};
 	for (int i = 0; i < 2; i++)
 	{
 		if (color_mode[i])
@@ -929,7 +1020,7 @@ void VertexLoader::AppendToString(std::string *dest) const
 			dest->append(StringFromFormat("C%i: %i %s-%s ", i, m_VtxAttr.color[i].Elements, posMode[color_mode[i]], colorFormat[m_VtxAttr.color[i].Comp]));
 		}
 	}
-	u32 tex_mode[8] = {
+	u64 tex_mode[8] = {
 		m_VtxDesc.Tex0Coord, m_VtxDesc.Tex1Coord, m_VtxDesc.Tex2Coord, m_VtxDesc.Tex3Coord,
 		m_VtxDesc.Tex4Coord, m_VtxDesc.Tex5Coord, m_VtxDesc.Tex6Coord, m_VtxDesc.Tex7Coord
 	};

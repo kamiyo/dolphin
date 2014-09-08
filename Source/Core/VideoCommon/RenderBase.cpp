@@ -65,7 +65,6 @@ TargetRectangle Renderer::target_rc;
 
 int Renderer::s_LastEFBScale;
 
-bool Renderer::s_skipSwap;
 bool Renderer::XFBWrited;
 
 PEControl::PixelFormat Renderer::prev_efb_format = PEControl::INVALID_FMT;
@@ -113,8 +112,6 @@ void Renderer::RenderToXFB(u32 xfbAddr, const EFBRectangle& sourceRc, u32 fbWidt
 	if (!fbWidth || !fbHeight)
 		return;
 
-	s_skipSwap = g_bSkipCurrentFrame;
-
 	VideoFifo_CheckEFBAccess();
 	VideoFifo_CheckSwapRequestAt(xfbAddr, fbWidth, fbHeight);
 	XFBWrited = true;
@@ -126,7 +123,7 @@ void Renderer::RenderToXFB(u32 xfbAddr, const EFBRectangle& sourceRc, u32 fbWidt
 	else
 	{
 		Swap(xfbAddr, fbWidth, fbHeight,sourceRc,Gamma);
-		Common::AtomicStoreRelease(s_swapRequested, false);
+		s_swapRequested.Clear();
 	}
 }
 

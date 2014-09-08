@@ -72,7 +72,6 @@ void InitBackendInfo()
 	}
 
 	g_Config.backend_info.APIType = API_D3D;
-	g_Config.backend_info.bUseRGBATextures = true; // the GX formats barely match any D3D11 formats
 	g_Config.backend_info.bUseMinimalMipCount = true;
 	g_Config.backend_info.bSupportsExclusiveFullscreen = true;
 	g_Config.backend_info.bSupportsDualSourceBlend = true;
@@ -160,11 +159,6 @@ bool VideoBackend::Initialize(void *window_handle)
 
 void VideoBackend::Video_Prepare()
 {
-	// Better be safe...
-	s_efbAccessRequested = FALSE;
-	s_FifoShuttingDown = FALSE;
-	s_swapRequested = FALSE;
-
 	// internal interfaces
 	g_renderer = new Renderer(m_window_handle);
 	g_texture_cache = new TextureCache;
@@ -196,10 +190,6 @@ void VideoBackend::Shutdown()
 	// TODO: should be in Video_Cleanup
 	if (g_renderer)
 	{
-		s_efbAccessRequested = FALSE;
-		s_FifoShuttingDown = FALSE;
-		s_swapRequested = FALSE;
-
 		// VideoCommon
 		Fifo_Shutdown();
 		CommandProcessor::Shutdown();
@@ -221,7 +211,8 @@ void VideoBackend::Shutdown()
 	}
 }
 
-void VideoBackend::Video_Cleanup() {
+void VideoBackend::Video_Cleanup()
+{
 }
 
 }

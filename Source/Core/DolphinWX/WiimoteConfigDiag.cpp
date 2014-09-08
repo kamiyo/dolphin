@@ -28,11 +28,11 @@
 #include "DolphinWX/InputConfigDiag.h"
 #include "DolphinWX/WiimoteConfigDiag.h"
 
-class InputPlugin;
+class InputConfig;
 
-WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin)
+WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputConfig& config)
 	: wxDialog(parent, -1, _("Dolphin Wiimote Configuration"))
-	, m_plugin(plugin)
+	, m_config(config)
 {
 	wxBoxSizer* const main_sizer = new wxBoxSizer(wxVERTICAL);
 
@@ -43,8 +43,7 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 
 	for (unsigned int i = 0; i < MAX_WIIMOTES; ++i)
 	{
-		wxString str;
-		str.Printf(_("Wiimote %i"), i + 1);
+		wxString wiimote_str = wxString::Format(_("Wiimote %i"), i + 1);
 
 		const wxString src_choices[] = { _("None"),
 		_("Emulated Wiimote"), _("Real Wiimote"), _("Hybrid Wiimote") };
@@ -57,7 +56,7 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 		int config_bt_id = wxWindow::NewControlId();
 		m_wiimote_index_from_conf_bt_id.insert(std::pair<wxWindowID, unsigned int>(config_bt_id, i));
 
-		wiimote_label[i] = new wxStaticText(this, wxID_ANY, str);
+		wiimote_label[i] = new wxStaticText(this, wxID_ANY, wiimote_str);
 		wiimote_source_ch[i] = new wxChoice(this, source_ctrl_id, wxDefaultPosition, wxDefaultSize, sizeof(src_choices)/sizeof(*src_choices), src_choices);
 		wiimote_source_ch[i]->Bind(wxEVT_CHOICE, &WiimoteConfigDiag::SelectSource, this);
 		wiimote_configure_bt[i] = new wxButton(this, config_bt_id, _("Configure"));
@@ -68,7 +67,6 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 		if (m_orig_wiimote_sources[i] != WIIMOTE_SRC_EMU && m_orig_wiimote_sources[i] != WIIMOTE_SRC_HYBRID)
 			wiimote_configure_bt[i]->Disable();
 	}
-
 
 	// "Wiimotes" layout
 	wxStaticBoxSizer* const wiimote_group = new wxStaticBoxSizer(wxHORIZONTAL, this, _("Wiimotes"));
@@ -115,15 +113,10 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 	continuous_scanning->Bind(wxEVT_CHECKBOX, &WiimoteConfigDiag::OnContinuousScanning, this);
 	continuous_scanning->SetValue(SConfig::GetInstance().m_WiimoteContinuousScanning);
 
-	auto wiimote_speaker = new wxCheckBox(this, wxID_ANY, _("Enable Speaker Data"));
-	wiimote_speaker->Bind(wxEVT_CHECKBOX, &WiimoteConfigDiag::OnEnableSpeaker, this);
-	wiimote_speaker->SetValue(SConfig::GetInstance().m_WiimoteEnableSpeaker);
-
 	real_wiimotes_sizer->Add(continuous_scanning, 0, wxALIGN_CENTER_VERTICAL);
 	real_wiimotes_sizer->AddStretchSpacer(1);
 	real_wiimotes_sizer->Add(refresh_btn, 0, wxALL | wxALIGN_CENTER, 5);
 
-	real_wiimotes_group->Add(wiimote_speaker, 0);
 	real_wiimotes_group->Add(real_wiimotes_sizer, 0, wxEXPAND);
 
 	// "General Settings" controls
@@ -132,6 +125,10 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 	wxSlider* const WiiSensBarSens = new wxSlider(this, wxID_ANY, 0, 0, 4);
 	wxSlider* const WiimoteSpkVolume = new wxSlider(this, wxID_ANY, 0, 0, 127);
 	wxCheckBox* const WiimoteMotor = new wxCheckBox(this, wxID_ANY, _("Wiimote Motor"));
+
+	auto wiimote_speaker = new wxCheckBox(this, wxID_ANY, _("Enable Speaker Data"));
+	wiimote_speaker->Bind(wxEVT_CHECKBOX, &WiimoteConfigDiag::OnEnableSpeaker, this);
+	wiimote_speaker->SetValue(SConfig::GetInstance().m_WiimoteEnableSpeaker);
 
 	wxStaticText* const WiiSensBarPosText = new wxStaticText(this, wxID_ANY, _("Sensor Bar Position:"));
 	wxStaticText* const WiiSensBarSensText = new wxStaticText(this, wxID_ANY, _("IR Sensitivity:"));
@@ -169,9 +166,7 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 				wiimote_source_ch[i]->Disable();
 			}
 		}
-
 	}
-
 
 	// "General Settings" initialization
 	WiiSensBarPos->SetSelection(SConfig::GetInstance().m_SYSCONF->GetData<u8>("BT.BAR"));
@@ -208,6 +203,7 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 
 	wxGridSizer* const general_wiimote_sizer = new wxGridSizer(1, 5, 5);
 	general_wiimote_sizer->Add(WiimoteMotor);
+	general_wiimote_sizer->Add(wiimote_speaker, 0);
 
 	general_sizer->Add(choice_sizer);
 	general_sizer->Add(general_wiimote_sizer);
@@ -230,7 +226,7 @@ WiimoteConfigDiag::WiimoteConfigDiag(wxWindow* const parent, InputPlugin& plugin
 
 void WiimoteConfigDiag::ConfigEmulatedWiimote(wxCommandEvent& ev)
 {
-	InputConfigDialog* const m_emu_config_diag = new InputConfigDialog(this, m_plugin, _trans("Dolphin Emulated Wiimote Configuration"), m_wiimote_index_from_conf_bt_id[ev.GetId()]);
+	InputConfigDialog* const m_emu_config_diag = new InputConfigDialog(this, m_config, _trans("Dolphin Emulated Wiimote Configuration"), m_wiimote_index_from_conf_bt_id[ev.GetId()]);
 	m_emu_config_diag->ShowModal();
 	m_emu_config_diag->Destroy();
 }

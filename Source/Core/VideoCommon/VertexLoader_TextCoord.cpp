@@ -173,7 +173,7 @@ static int tableReadTexCoordVertexSize[4][8][2] = {
 	},
 };
 
-void VertexLoader_TextCoord::Init(void)
+void VertexLoader_TextCoord::Init()
 {
 
 #if _M_SSE >= 0x301
@@ -198,12 +198,12 @@ void VertexLoader_TextCoord::Init(void)
 
 }
 
-unsigned int VertexLoader_TextCoord::GetSize(unsigned int _type, unsigned int _format, unsigned int _elements)
+unsigned int VertexLoader_TextCoord::GetSize(u64 _type, unsigned int _format, unsigned int _elements)
 {
 	return tableReadTexCoordVertexSize[_type][_format][_elements];
 }
 
-TPipelineFunction VertexLoader_TextCoord::GetFunction(unsigned int _type, unsigned int _format, unsigned int _elements)
+TPipelineFunction VertexLoader_TextCoord::GetFunction(u64 _type, unsigned int _format, unsigned int _elements)
 {
 	return tableReadTexCoord[_type][_format][_elements];
 }

@@ -19,7 +19,7 @@
 #include "VideoCommon/PixelEngine.h"
 #include "VideoCommon/VideoConfig.h"
 
-volatile bool g_bSkipCurrentFrame = false;
+bool g_bSkipCurrentFrame = false;
 
 namespace
 {
@@ -148,12 +148,12 @@ void RunGpuLoop()
 
 		VideoFifo_CheckAsyncRequest();
 
-		CommandProcessor::SetCpStatus();
+		CommandProcessor::SetCPStatusFromGPU();
 
 		Common::AtomicStore(CommandProcessor::VITicks, CommandProcessor::m_cpClockOrigin);
 
 		// check if we are able to run this buffer
-		while (GpuRunningState && !CommandProcessor::interruptWaiting && fifo.bFF_GPReadEnable && fifo.CPReadWriteDistance && !AtBreakpoint())
+		while (GpuRunningState && EmuRunningState && !CommandProcessor::interruptWaiting && fifo.bFF_GPReadEnable && fifo.CPReadWriteDistance && !AtBreakpoint())
 		{
 			fifo.isGpuReadingData = true;
 			CommandProcessor::isPossibleWaitingSetDrawDone = fifo.bFF_GPLinkEnable ? true : false;
@@ -173,9 +173,9 @@ void RunGpuLoop()
 
 				ReadDataFromFifo(uData, 32);
 
-				cyclesExecuted = OpcodeDecoder_Run(g_bSkipCurrentFrame);
+				cyclesExecuted = OpcodeDecoder_Run(GetVideoBufferEndPtr());
 
-				if (Core::g_CoreStartupParameter.bSyncGPU && Common::AtomicLoad(CommandProcessor::VITicks) > cyclesExecuted)
+				if (Core::g_CoreStartupParameter.bSyncGPU && Common::AtomicLoad(CommandProcessor::VITicks) >= cyclesExecuted)
 					Common::AtomicAdd(CommandProcessor::VITicks, -(s32)cyclesExecuted);
 
 				Common::AtomicStore(fifo.CPReadPointer, readPtr);
@@ -184,7 +184,7 @@ void RunGpuLoop()
 					Common::AtomicStore(fifo.SafeCPReadPointer, fifo.CPReadPointer);
 			}
 
-			CommandProcessor::SetCpStatus();
+			CommandProcessor::SetCPStatusFromGPU();
 
 			// This call is pretty important in DualCore mode and must be called in the FIFO Loop.
 			// If we don't, s_swapRequested or s_efbAccessRequested won't be set to false
@@ -235,7 +235,7 @@ void RunGpu()
 		FPURoundMode::SaveSIMDState();
 		FPURoundMode::LoadDefaultSIMDState();
 		ReadDataFromFifo(uData, 32);
-		OpcodeDecoder_Run(g_bSkipCurrentFrame);
+		OpcodeDecoder_Run(GetVideoBufferEndPtr());
 		FPURoundMode::LoadSIMDState();
 
 		//DEBUG_LOG(COMMANDPROCESSOR, "Fifo wraps to base");
@@ -247,5 +247,5 @@ void RunGpu()
 
 		fifo.CPReadWriteDistance -= 32;
 	}
-	CommandProcessor::SetCpStatus();
+	CommandProcessor::SetCPStatusFromGPU();
 }

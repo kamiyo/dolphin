@@ -103,9 +103,17 @@ static void EnsureTmpInputSize(size_t bound)
 	tmpInput = newTmpInput;
 }
 
+static bool IsMovieHeader(u8 magic[4])
+{
+	return magic[0] == 'D' &&
+	       magic[1] == 'T' &&
+	       magic[2] == 'M' &&
+	       magic[3] == 0x1A;
+}
+
 std::string GetInputDisplay()
 {
-	if (!IsPlayingInput() && !IsRecordingInput())
+	if (!IsMovieActive())
 	{
 		g_numPads = 0;
 		for (int i = 0; i < 4; i++)
@@ -190,7 +198,7 @@ void Init()
 	for (auto& disp : g_InputDisplay)
 		disp.clear();
 
-	if (!IsPlayingInput() && !IsRecordingInput())
+	if (!IsMovieActive())
 	{
 		g_bRecordingFromSaveState = false;
 		g_rerecords = 0;
@@ -265,7 +273,7 @@ void SetReadOnly(bool bEnabled)
 void FrameSkipping()
 {
 	// Frameskipping will desync movie playback
-	if (!IsPlayingInput() && !IsRecordingInput())
+	if (!IsMovieActive())
 	{
 		std::lock_guard<std::mutex> lk(cs_frameSkip);
 
@@ -300,6 +308,11 @@ bool IsJustStartingPlayingInputFromSaveState()
 bool IsPlayingInput()
 {
 	return (g_playMode == MODE_PLAYING);
+}
+
+bool IsMovieActive()
+{
+	return g_playMode != MODE_NONE;
 }
 
 bool IsReadOnly()
@@ -430,17 +443,21 @@ bool BeginRecordingInput(int controllers)
 	g_currentLagCount = g_totalLagCount = 0;
 	g_currentInputCount = g_totalInputCount = 0;
 	g_totalTickCount = g_tickCountAtLastInput = 0;
+	bongos = 0;
+	memcards = 0;
 	if (NetPlay::IsNetPlayRunning())
 	{
 		bNetPlay = true;
 		g_recordingStartTime = NETPLAY_INITIAL_GCTIME;
 	}
 	else
+	{
 		g_recordingStartTime = Common::Timer::GetLocalTimeSinceJan1970();
+	}
 
 	g_rerecords = 0;
 
-	for (int i = 0; i < MAX_SI_CHANNELS; i++)
+	for (int i = 0; i < MAX_SI_CHANNELS; ++i)
 		if (SConfig::GetInstance().m_SIDevice[i] == SIDEVICE_GC_TARUKONGA)
 			bongos |= (1 << i);
 
@@ -730,10 +747,8 @@ bool PlayInput(const std::string& filename)
 
 	g_recordfd.ReadArray(&tmpHeader, 1);
 
-	if (tmpHeader.filetype[0] != 'D' ||
-	    tmpHeader.filetype[1] != 'T' ||
-	    tmpHeader.filetype[2] != 'M' ||
-	    tmpHeader.filetype[3] != 0x1A) {
+	if (!IsMovieHeader(tmpHeader.filetype))
+	{
 		PanicAlertT("Invalid recording file");
 		goto cleanup;
 	}
@@ -800,7 +815,7 @@ void LoadInput(const std::string& filename)
 
 	t_record.ReadArray(&tmpHeader, 1);
 
-	if (tmpHeader.filetype[0] != 'D' || tmpHeader.filetype[1] != 'T' || tmpHeader.filetype[2] != 'M' || tmpHeader.filetype[3] != 0x1A)
+	if (!IsMovieHeader(tmpHeader.filetype))
 	{
 		PanicAlertT("Savestate movie %s is corrupted, movie recording stopping...", filename.c_str());
 		EndPlayInput(false);
@@ -1247,7 +1262,7 @@ void GetSettings()
 
 void CheckMD5()
 {
-	for (int i=0, n=0; i<16; i++)
+	for (int i = 0, n = 0; i < 16; ++i)
 	{
 		if (tmpHeader.md5[i] != 0)
 			continue;

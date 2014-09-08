@@ -25,7 +25,7 @@ SoundStream *soundStream = nullptr;
 
 namespace AudioCommon
 {
-	SoundStream *InitSoundStream(void *hWnd)
+	SoundStream* InitSoundStream()
 	{
 		CMixer *mixer = new CMixer(48000);
 
@@ -123,6 +123,15 @@ namespace AudioCommon
 		if (OpenSLESStream::isValid())
 			backends.push_back(BACKEND_OPENSLES);
 		return backends;
+	}
+
+	std::vector<std::string> GetInterpAlgos()
+	{
+		std::vector<std::string> interps;
+		interps.push_back(INTERP_LINEAR);
+		interps.push_back(INTERP_CUBIC);
+		interps.push_back(INTERP_LANCZOS);
+		return interps;
 	}
 
 	void PauseAndLock(bool doLock, bool unpauseOnUnlock)

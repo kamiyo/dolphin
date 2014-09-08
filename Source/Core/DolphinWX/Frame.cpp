@@ -324,7 +324,7 @@ CFrame::CFrame(wxFrame* parent,
 	, m_LogWindow(nullptr), m_LogConfigWindow(nullptr)
 	, m_FifoPlayerDlg(nullptr), UseDebugger(_UseDebugger)
 	, m_bBatchMode(_BatchMode), m_bEdit(false), m_bTabSplit(false), m_bNoDocking(false)
-	, m_bGameLoading(false), m_bClosing(false), m_confirmStop(false)
+	, m_bGameLoading(false), m_bClosing(false), m_confirmStop(false), m_menubar_shadow(nullptr)
 {
 	for (int i = 0; i <= IDM_CODEWINDOW - IDM_LOGWINDOW; i++)
 		bFloatWindow[i] = false;
@@ -353,7 +353,10 @@ CFrame::CFrame(wxFrame* parent,
 		GetStatusBar()->Hide();
 
 	// Give it a menu bar
-	CreateMenu();
+	wxMenuBar* menubar_active = CreateMenu();
+	SetMenuBar(menubar_active);
+	// Create a menubar to service requests while the real menubar is hidden from the screen
+	m_menubar_shadow = CreateMenu();
 
 	// ---------------
 	// Main panel
@@ -437,6 +440,8 @@ CFrame::CFrame(wxFrame* parent,
 
 	// Update controls
 	UpdateGUI();
+	if (g_pCodeWindow)
+		g_pCodeWindow->UpdateButtonStates();
 }
 // Destructor
 CFrame::~CFrame()
@@ -450,6 +455,10 @@ CFrame::~CFrame()
 	ClosePages();
 
 	delete m_Mgr;
+
+	// This object is owned by us, not wxw
+	m_menubar_shadow->Destroy();
+	m_menubar_shadow = nullptr;
 }
 
 bool CFrame::RendererIsFullscreen()
@@ -1252,8 +1261,15 @@ void CFrame::DoFullscreen(bool enable_fullscreen)
 			// Hide toolbar
 			DoToggleToolbar(false);
 
-			// Disable toggling toolbar in menu
-			GetMenuBar()->FindItem(IDM_TOGGLE_TOOLBAR)->Enable(false);
+			// Hide menubar (by having wxwidgets delete it)
+			SetMenuBar(nullptr);
+
+			// Hide the statusbar if enabled
+			if (GetStatusBar()->IsShown())
+			{
+				GetStatusBar()->Hide();
+				this->SendSizeEvent();
+			}
 		}
 		else
 		{
@@ -1263,8 +1279,18 @@ void CFrame::DoFullscreen(bool enable_fullscreen)
 			// Restore toolbar to the status it was at before going fullscreen.
 			DoToggleToolbar(SConfig::GetInstance().m_InterfaceToolbar);
 
-			// Re-enable toggling toolbar in menu
-			GetMenuBar()->FindItem(IDM_TOGGLE_TOOLBAR)->Enable(true);
+			// Recreate the menubar if needed.
+			if (wxFrame::GetMenuBar() == nullptr)
+			{
+				SetMenuBar(CreateMenu());
+			}
+
+			// Show statusbar if enabled
+			if (SConfig::GetInstance().m_InterfaceStatusbar)
+			{
+				GetStatusBar()->Show();
+				this->SendSizeEvent();
+			}
 		}
 	}
 	else

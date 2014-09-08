@@ -2,6 +2,7 @@
 // Licensed under GPLv2
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <queue>
 #include <string>
 
@@ -128,7 +129,8 @@ bool AnalyzeFunction(u32 startAddr, Symbol &func, int max_size)
 				}
 			}
 			/*
-			else if ((instr.hex & 0xFC000000) == (0x4b000000 & 0xFC000000) && !instr.LK) {
+			else if ((instr.hex & 0xFC000000) == (0x4b000000 & 0xFC000000) && !instr.LK)
+			{
 				u32 target = addr + SignExt26(instr.LI << 2);
 				if (target < startAddr || (max_size && target > max_size+startAddr))
 				{
@@ -415,11 +417,10 @@ void PPCAnalyzer::ReorderInstructions(u32 instructions, CodeOp *code)
 			(a.inst.OPCD == 31 && (a.inst.SUBOP10 == 0 || a.inst.SUBOP10 == 32)))
 		{
 			// Got a compare instruction.
-			if (CanSwapAdjacentOps(a, b)) {
+			if (CanSwapAdjacentOps(a, b))
+			{
 				// Alright, let's bubble it down!
-				CodeOp c = a;
-				a = b;
-				b = c;
+				std::swap(a, b);
 			}
 		}
 	}
@@ -452,6 +453,10 @@ void PPCAnalyzer::SetInstructionStats(CodeBlock *block, CodeOp *code, GekkoOPInf
 		code->outputCR1 = true;
 	else
 		code->outputCR1 = (opinfo->flags & FL_SET_CR1) ? true : false;
+
+	code->wantsFPRF = (opinfo->flags & FL_READ_FPRF) ? true : false;
+	code->outputFPRF = (opinfo->flags & FL_SET_FPRF) ? true : false;
+	code->canEndBlock = (opinfo->flags & FL_ENDBLOCK) ? true : false;
 
 	int numOut = 0;
 	int numIn = 0;
@@ -622,7 +627,8 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock *block, CodeBuffer *buffer, u32 
 				{
 					// mtspr
 					const u32 index = (inst.SPRU << 5) | (inst.SPRL & 0x1F);
-					if (index == SPR_LR) {
+					if (index == SPR_LR)
+					{
 						// We give up to follow the return address
 						// because we have to check the register usage.
 						return_address = 0;
@@ -710,24 +716,25 @@ u32 PPCAnalyzer::Analyze(u32 address, CodeBlock *block, CodeBuffer *buffer, u32 
 	}
 
 	// Scan for CR0 dependency
-	// assume next block wants CR0 to be safe
+	// assume next block wants flags to be safe
 	bool wantsCR0 = true;
 	bool wantsCR1 = true;
 	bool wantsPS1 = true;
+	bool wantsFPRF = true;
 	for (int i = block->m_num_instructions - 1; i >= 0; i--)
 	{
-		if (code[i].outputCR0)
-			wantsCR0 = false;
-		if (code[i].outputCR1)
-			wantsCR1 = false;
-		if (code[i].outputPS1)
-			wantsPS1 = false;
-		wantsCR0 |= code[i].wantsCR0;
-		wantsCR1 |= code[i].wantsCR1;
-		wantsPS1 |= code[i].wantsPS1;
+		wantsCR0 |= code[i].wantsCR0 || code[i].canEndBlock;
+		wantsCR1 |= code[i].wantsCR1 || code[i].canEndBlock;
+		wantsPS1 |= code[i].wantsPS1 || code[i].canEndBlock;
+		wantsFPRF |= code[i].wantsFPRF || code[i].canEndBlock;
 		code[i].wantsCR0 = wantsCR0;
 		code[i].wantsCR1 = wantsCR1;
 		code[i].wantsPS1 = wantsPS1;
+		code[i].wantsFPRF = wantsFPRF;
+		wantsCR0 &= !code[i].outputCR0;
+		wantsCR1 &= !code[i].outputCR1;
+		wantsPS1 &= !code[i].outputPS1;
+		wantsFPRF &= !code[i].outputFPRF;
 	}
 	return address;
 }

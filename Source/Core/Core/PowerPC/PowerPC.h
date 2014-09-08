@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <tuple>
+
 #include "Common/BreakPoints.h"
 #include "Common/Common.h"
 
@@ -29,11 +31,6 @@ enum CoreMode
 struct GC_ALIGNED64(PowerPCState)
 {
 	u32 gpr[32];    // General purpose registers. r1 = stack pointer.
-
-	// The paired singles are strange : PS0 is stored in the full 64 bits of each FPR
-	// but ps calculations are only done in 32-bit precision, and PS1 is only 32 bits.
-	// Since we want to use SIMD, SSE2 is the only viable alternative - 2x double.
-	u64 ps[32][2];
 
 	u32 pc;     // program counter
 	u32 npc;
@@ -64,9 +61,21 @@ struct GC_ALIGNED64(PowerPCState)
 	// This variable should be inside of the CoreTiming namespace if we wanted to be correct.
 	int downcount;
 
-	u32 sr[16];  // Segment registers.
+#if _M_X86_64
+	// This member exists for the purpose of an assertion in x86 JitBase.cpp
+	// that its offset <= 0x100.  To minimize code size on x86, we want as much
+	// useful stuff in the one-byte offset range as possible - which is why ps
+	// is sitting down here.  It currently doesn't make a difference on other
+	// supported architectures.
+	std::tuple<> above_fits_in_first_0x100;
+#endif
 
-	u32 DebugCount;
+	// The paired singles are strange : PS0 is stored in the full 64 bits of each FPR
+	// but ps calculations are only done in 32-bit precision, and PS1 is only 32 bits.
+	// Since we want to use SIMD, SSE2 is the only viable alternative - 2x double.
+	GC_ALIGNED16(u64 ps[32][2]);
+
+	u32 sr[16];  // Segment registers.
 
 	// special purpose registers - controls quantizers, DMA, and lots of other misc extensions.
 	// also for power management, but we don't care about that.
@@ -85,6 +94,10 @@ struct GC_ALIGNED64(PowerPCState)
 
 	InstructionCache iCache;
 };
+
+#if _M_X86_64
+static_assert(offsetof(PowerPC::PowerPCState, above_fits_in_first_0x100) <= 0x100, "top of PowerPCState too big");
+#endif
 
 enum CPUState
 {
@@ -187,14 +200,19 @@ inline u64 PPCCRToInternal(u8 value)
 	return cr_val;
 }
 
+// convert flags into 64-bit CR values with a lookup table
+extern const u64 m_crTable[16];
+
 // Warning: these CR operations are fairly slow since they need to convert from
 // PowerPC format (4 bit) to our internal 64 bit format. See the definition of
 // ppcState.cr_val for more explanations.
-inline void SetCRField(int cr_field, int value) {
-	PowerPC::ppcState.cr_val[cr_field] = PPCCRToInternal(value);
+inline void SetCRField(int cr_field, int value)
+{
+	PowerPC::ppcState.cr_val[cr_field] = m_crTable[value];
 }
 
-inline u32 GetCRField(int cr_field) {
+inline u32 GetCRField(int cr_field)
+{
 	u64 cr_val = PowerPC::ppcState.cr_val[cr_field];
 	u32 ppc_cr = 0;
 
@@ -210,11 +228,13 @@ inline u32 GetCRField(int cr_field) {
 	return ppc_cr;
 }
 
-inline u32 GetCRBit(int bit) {
+inline u32 GetCRBit(int bit)
+{
 	return (GetCRField(bit >> 2) >> (3 - (bit & 3))) & 1;
 }
 
-inline void SetCRBit(int bit, int value) {
+inline void SetCRBit(int bit, int value)
+{
 	if (value & 1)
 		SetCRField(bit >> 2, GetCRField(bit >> 2) | (0x8 >> (bit & 3)));
 	else
@@ -222,36 +242,44 @@ inline void SetCRBit(int bit, int value) {
 }
 
 // SetCR and GetCR are fairly slow. Should be avoided if possible.
-inline void SetCR(u32 new_cr) {
+inline void SetCR(u32 new_cr)
+{
 	PowerPC::ExpandCR(new_cr);
 }
 
-inline u32 GetCR() {
+inline u32 GetCR()
+{
 	return PowerPC::CompactCR();
 }
 
 // SetCarry/GetCarry may speed up soon.
-inline void SetCarry(int ca) {
+inline void SetCarry(int ca)
+{
 	((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]).CA = ca;
 }
 
-inline int GetCarry() {
+inline int GetCarry()
+{
 	return ((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]).CA;
 }
 
-inline UReg_XER GetXER() {
+inline UReg_XER GetXER()
+{
 	return ((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]);
 }
 
-inline void SetXER(UReg_XER new_xer) {
+inline void SetXER(UReg_XER new_xer)
+{
 	((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]) = new_xer;
 }
 
-inline int GetXER_SO() {
+inline int GetXER_SO()
+{
 	return ((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]).SO;
 }
 
-inline void SetXER_SO(int value) {
+inline void SetXER_SO(int value)
+{
 	((UReg_XER&)PowerPC::ppcState.spr[SPR_XER]).SO = value;
 }
 

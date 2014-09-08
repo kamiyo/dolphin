@@ -11,6 +11,10 @@
 
 #if defined HAVE_OPENAL && HAVE_OPENAL
 
+#ifdef _WIN32
+#pragma comment(lib, "openal32.lib")
+#endif
+
 static soundtouch::SoundTouch soundTouch;
 
 //
@@ -97,6 +101,15 @@ void OpenALStream::SetVolume(int volume)
 
 	if (uiSource)
 		alSourcef(uiSource, AL_GAIN, fVolume);
+}
+
+float OpenALStream::GetVolume()
+{
+	float v;
+	if (uiSource)
+		alGetSourcef(uiSource, AL_GAIN, &v);
+
+	return v;
 }
 
 void OpenALStream::Update()
@@ -219,8 +232,6 @@ void OpenALStream::SoundLoop()
 			// many silence samples.  These do not need to be timestretched.
 			if (rate > 0.10)
 			{
-				// Adjust SETTING_SEQUENCE_MS to balance between lag vs hollow audio
-				soundTouch.setSetting(SETTING_SEQUENCE_MS, (int)(1 / (rate * rate)));
 				soundTouch.setTempo(rate);
 				if (rate > 10)
 				{

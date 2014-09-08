@@ -26,34 +26,43 @@
 namespace ArmGen
 {
 
-inline u32 RotR(u32 a, int amount) {
+inline u32 RotR(u32 a, int amount)
+{
 	if (!amount) return a;
 	return (a >> amount) | (a << (32 - amount));
 }
 
-inline u32 RotL(u32 a, int amount) {
+inline u32 RotL(u32 a, int amount)
+{
 	if (!amount) return a;
 	return (a << amount) | (a >> (32 - amount));
 }
 
-bool TryMakeOperand2(u32 imm, Operand2 &op2) {
+bool TryMakeOperand2(u32 imm, Operand2 &op2)
+{
 	// Just brute force it.
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < 16; i++)
+	{
 		int mask = RotR(0xFF, i * 2);
-		if ((imm & mask) == imm) {
+		if ((imm & mask) == imm)
+		{
 			op2 = Operand2((u8)(RotL(imm, i * 2)), (u8)i);
 			return true;
 		}
 	}
+
 	return false;
 }
 
 bool TryMakeOperand2_AllowInverse(u32 imm, Operand2 &op2, bool *inverse)
 {
-	if (!TryMakeOperand2(imm, op2)) {
+	if (!TryMakeOperand2(imm, op2))
+	{
 		*inverse = true;
 		return TryMakeOperand2(~imm, op2);
-	} else {
+	}
+	else
+	{
 		*inverse = false;
 		return true;
 	}
@@ -61,20 +70,24 @@ bool TryMakeOperand2_AllowInverse(u32 imm, Operand2 &op2, bool *inverse)
 
 bool TryMakeOperand2_AllowNegation(s32 imm, Operand2 &op2, bool *negated)
 {
-	if (!TryMakeOperand2(imm, op2)) {
+	if (!TryMakeOperand2(imm, op2))
+	{
 		*negated = true;
 		return TryMakeOperand2(-imm, op2);
-	} else {
+	}
+	else
+	{
 		*negated = false;
 		return true;
 	}
 }
 
-Operand2 AssumeMakeOperand2(u32 imm) {
+Operand2 AssumeMakeOperand2(u32 imm)
+{
 	Operand2 op2;
 	bool result = TryMakeOperand2(imm, op2);
 	(void) result;
-	_dbg_assert_msg_(DYNA_REC, result, "Could not make assumed Operand2.");
+	_assert_msg_(DYNA_REC, result, "Could not make assumed Operand2.");
 	return op2;
 }
 
@@ -93,10 +106,12 @@ bool ARMXEmitter::TrySetValue_TwoOp(ARMReg reg, u32 val)
 		return false;
 
 	bool first = true;
-	for (int i = 0; i < 16; i++, val >>=2) {
-		if (val & 0x3) {
+	for (int i = 0; i < 16; i++, val >>=2)
+	{
+		if (val & 0x3)
+		{
 			first ? MOV(reg, Operand2((u8)val, (u8)((16-i) & 0xF)))
-				  : ORR(reg, reg, Operand2((u8)val, (u8)((16-i) & 0xF)));
+			      : ORR(reg, reg, Operand2((u8)val, (u8)((16-i) & 0xF)));
 			first = false;
 			i+=3;
 			val >>= 6;
@@ -138,12 +153,15 @@ void ARMXEmitter::ADDI2R(ARMReg rd, ARMReg rs, u32 val, ARMReg scratch)
 {
 	Operand2 op2;
 	bool negated;
-	if (TryMakeOperand2_AllowNegation(val, op2, &negated)) {
+	if (TryMakeOperand2_AllowNegation(val, op2, &negated))
+	{
 		if (!negated)
 			ADD(rd, rs, op2);
 		else
 			SUB(rd, rs, op2);
-	} else {
+	}
+	else
+	{
 		MOVI2R(scratch, val);
 		ADD(rd, rs, scratch);
 	}
@@ -153,13 +171,19 @@ void ARMXEmitter::ANDI2R(ARMReg rd, ARMReg rs, u32 val, ARMReg scratch)
 {
 	Operand2 op2;
 	bool inverse;
-	if (TryMakeOperand2_AllowInverse(val, op2, &inverse)) {
-		if (!inverse) {
+	if (TryMakeOperand2_AllowInverse(val, op2, &inverse))
+	{
+		if (!inverse)
+		{
 			AND(rd, rs, op2);
-		} else {
+		}
+		else
+		{
 			BIC(rd, rs, op2);
 		}
-	} else {
+	}
+	else
+	{
 		MOVI2R(scratch, val);
 		AND(rd, rs, scratch);
 	}
@@ -169,12 +193,15 @@ void ARMXEmitter::CMPI2R(ARMReg rs, u32 val, ARMReg scratch)
 {
 	Operand2 op2;
 	bool negated;
-	if (TryMakeOperand2_AllowNegation(val, op2, &negated)) {
+	if (TryMakeOperand2_AllowNegation(val, op2, &negated))
+	{
 		if (!negated)
 			CMP(rs, op2);
 		else
 			CMN(rs, op2);
-	} else {
+	}
+	else
+	{
 		MOVI2R(scratch, val);
 		CMP(rs, scratch);
 	}
@@ -183,9 +210,12 @@ void ARMXEmitter::CMPI2R(ARMReg rs, u32 val, ARMReg scratch)
 void ARMXEmitter::ORI2R(ARMReg rd, ARMReg rs, u32 val, ARMReg scratch)
 {
 	Operand2 op2;
-	if (TryMakeOperand2(val, op2)) {
+	if (TryMakeOperand2(val, op2))
+	{
 		ORR(rd, rs, op2);
-	} else {
+	}
+	else
+	{
 		MOVI2R(scratch, val);
 		ORR(rd, rs, scratch);
 	}
@@ -193,9 +223,11 @@ void ARMXEmitter::ORI2R(ARMReg rd, ARMReg rs, u32 val, ARMReg scratch)
 
 void ARMXEmitter::FlushLitPool()
 {
-	for (LiteralPool& pool : currentLitPool) {
+	for (LiteralPool& pool : currentLitPool)
+	{
 		// Search for duplicates
-		for (LiteralPool& old_pool : currentLitPool) {
+		for (LiteralPool& old_pool : currentLitPool)
+		{
 			if (old_pool.val == pool.val)
 				pool.loc = old_pool.loc;
 		}
@@ -235,16 +267,21 @@ void ARMXEmitter::MOVI2R(ARMReg reg, u32 val, bool optimize)
 		MOVW(reg, val & 0xFFFF);
 		MOVT(reg, val, true);
 	}
-	else if (TryMakeOperand2_AllowInverse(val, op2, &inverse)) {
+	else if (TryMakeOperand2_AllowInverse(val, op2, &inverse))
+	{
 		inverse ? MVN(reg, op2) : MOV(reg, op2);
-	} else {
+	}
+	else
+	{
 		if (cpu_info.bArmV7)
 		{
 			// Use MOVW+MOVT for ARMv7+
 			MOVW(reg, val & 0xFFFF);
 			if (val & 0xFFFF0000)
 				MOVT(reg, val, true);
-		} else if (!TrySetValue_TwoOp(reg,val)) {
+		}
+		else if (!TrySetValue_TwoOp(reg,val))
+		{
 			// Use literal pool for ARMv6.
 			AddNewLit(val);
 			LDR(reg, _PC); // To be backpatched later
@@ -252,10 +289,14 @@ void ARMXEmitter::MOVI2R(ARMReg reg, u32 val, bool optimize)
 	}
 }
 
-void ARMXEmitter::QuickCallFunction(ARMReg reg, void *func) {
-	if (BLInRange(func)) {
+void ARMXEmitter::QuickCallFunction(ARMReg reg, void *func)
+{
+	if (BLInRange(func))
+	{
 		BL(func);
-	} else {
+	}
+	else
+	{
 		MOVI2R(reg, (u32)(func));
 		BL(reg);
 	}
@@ -327,7 +368,8 @@ void ARMXEmitter::SetCC(CCFlags cond)
 
 void ARMXEmitter::NOP(int count)
 {
-	for (int i = 0; i < count; i++) {
+	for (int i = 0; i < count; i++)
+	{
 		Write32(condition | 0x01A00000);
 	}
 }
@@ -380,7 +422,7 @@ FixupBranch ARMXEmitter::B_CC(CCFlags Cond)
 void ARMXEmitter::B_CC(CCFlags Cond, const void *fnptr)
 {
 	s32 distance = (s32)fnptr - (s32(code) + 8);
-	_dbg_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
+	_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
 	                 "B_CC out of range (%p calls %p)", code, fnptr);
 
 	Write32((Cond << 28) | 0x0A000000 | ((distance >> 2) & 0x00FFFFFF));
@@ -398,7 +440,7 @@ FixupBranch ARMXEmitter::BL_CC(CCFlags Cond)
 void ARMXEmitter::SetJumpTarget(FixupBranch const &branch)
 {
 	s32 distance =  (s32(code) - 8)  - (s32)branch.ptr;
-	_dbg_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
+	_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
 	                 "SetJumpTarget out of range (%p calls %p)", code, branch.ptr);
 	u32 instr = (u32)(branch.condition | ((distance >> 2) & 0x00FFFFFF));
 	instr |= (0 == branch.type) ? /* B */ 0x0A000000 : /* BL */ 0x0B000000;
@@ -407,7 +449,7 @@ void ARMXEmitter::SetJumpTarget(FixupBranch const &branch)
 void ARMXEmitter::B(const void *fnptr)
 {
 	s32 distance = (s32)fnptr - (s32(code) + 8);
-	_dbg_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
+	_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
 	                 "B out of range (%p calls %p)", code, fnptr);
 
 	Write32(condition | 0x0A000000 | ((distance >> 2) & 0x00FFFFFF));
@@ -418,7 +460,8 @@ void ARMXEmitter::B(ARMReg src)
 	Write32(condition | 0x12FFF10 | src);
 }
 
-bool ARMXEmitter::BLInRange(const void *fnptr) {
+bool ARMXEmitter::BLInRange(const void *fnptr)
+{
 	s32 distance = (s32)fnptr - (s32(code) + 8);
 	if (distance <= -0x2000000 || distance > 0x2000000)
 		return false;
@@ -429,7 +472,7 @@ bool ARMXEmitter::BLInRange(const void *fnptr) {
 void ARMXEmitter::BL(const void *fnptr)
 {
 	s32 distance = (s32)fnptr - (s32(code) + 8);
-	_dbg_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
+	_assert_msg_(DYNA_REC, distance > -0x2000000 && distance <= 0x2000000,
 	                 "BL out of range (%p calls %p)", code, fnptr);
 	Write32(condition | 0x0B000000 | ((distance >> 2) & 0x00FFFFFF));
 }
@@ -440,31 +483,31 @@ void ARMXEmitter::BL(ARMReg src)
 void ARMXEmitter::PUSH(const int num, ...)
 {
 	u16 RegList = 0;
-	u8 Reg;
-	int i;
+
 	va_list vl;
 	va_start(vl, num);
-	for (i=0;i<num;i++)
+	for (int i = 0; i < num; i++)
 	{
-		Reg = va_arg(vl, u32);
+		u8 Reg = va_arg(vl, u32);
 		RegList |= (1 << Reg);
 	}
 	va_end(vl);
+
 	Write32(condition | (2349 << 16) | RegList);
 }
 void ARMXEmitter::POP(const int num, ...)
 {
 	u16 RegList = 0;
-	u8 Reg;
-	int i;
+
 	va_list vl;
 	va_start(vl, num);
-	for (i=0;i<num;i++)
+	for (int i = 0; i < num; i++)
 	{
-		Reg = va_arg(vl, u32);
+		u8 Reg = va_arg(vl, u32);
 		RegList |= (1 << Reg);
 	}
 	va_end(vl);
+
 	Write32(condition | (2237 << 16) | RegList);
 }
 
@@ -565,7 +608,7 @@ void ARMXEmitter::WriteInstruction (u32 Op, ARMReg Rd, ARMReg Rn, Operand2 Rm, b
 		}
 	}
 	if (op == -1)
-		_dbg_assert_msg_(DYNA_REC, false, "%s not yet support %d", InstNames[Op], Rm.GetType());
+		_assert_msg_(DYNA_REC, false, "%s not yet support %d", InstNames[Op], Rm.GetType());
 	Write32(condition | (op << 21) | (SetFlags ? (1 << 20) : 0) | Rn << 16 | Rd << 12 | Data);
 }
 
@@ -602,7 +645,8 @@ void ARMXEmitter::MULS(ARMReg dest, ARMReg src, ARMReg op2)
 	Write32(condition | (1 << 20) | (dest << 16) | (src << 8) | (9 << 4) | op2);
 }
 
-void ARMXEmitter::Write4OpMultiply(u32 op, ARMReg destLo, ARMReg destHi, ARMReg rm, ARMReg rn) {
+void ARMXEmitter::Write4OpMultiply(u32 op, ARMReg destLo, ARMReg destHi, ARMReg rm, ARMReg rn)
+{
 	Write32(condition | (op << 20) | (destHi << 16) | (destLo << 12) | (rm << 8) | (9 << 4) | rn);
 }
 
@@ -694,7 +738,7 @@ void ARMXEmitter::LDREX(ARMReg dest, ARMReg base)
 }
 void ARMXEmitter::STREX(ARMReg result, ARMReg base, ARMReg op)
 {
-	_dbg_assert_msg_(DYNA_REC, (result != base && result != op), "STREX dest can't be other two registers");
+	_assert_msg_(DYNA_REC, (result != base && result != op), "STREX dest can't be other two registers");
 	Write32(condition | (24 << 20) | (base << 16) | (result << 12) | (0xF9 << 4) | op);
 }
 void ARMXEmitter::DMB ()
@@ -747,7 +791,7 @@ void ARMXEmitter::WriteStoreOp(u32 Op, ARMReg Rt, ARMReg Rn, Operand2 Rm, bool R
 	bool SignedLoad = false;
 
 	if (op == -1)
-		_dbg_assert_msg_(DYNA_REC, false, "%s does not support %d", LoadStoreNames[Op], Rm.GetType());
+		_assert_msg_(DYNA_REC, false, "%s does not support %d", LoadStoreNames[Op], Rm.GetType());
 
 	switch (Op)
 	{
@@ -827,31 +871,31 @@ void ARMXEmitter::WriteRegStoreOp(u32 op, ARMReg dest, bool WriteBack, u16 RegLi
 void ARMXEmitter::STMFD(ARMReg dest, bool WriteBack, const int Regnum, ...)
 {
 	u16 RegList = 0;
-	u8 Reg;
-	int i;
+
 	va_list vl;
 	va_start(vl, Regnum);
-	for (i=0;i<Regnum;i++)
+	for (int i = 0; i < Regnum; i++)
 	{
-		Reg = va_arg(vl, u32);
+		u8 Reg = va_arg(vl, u32);
 		RegList |= (1 << Reg);
 	}
 	va_end(vl);
+
 	WriteRegStoreOp(0x90, dest, WriteBack, RegList);
 }
 void ARMXEmitter::LDMFD(ARMReg dest, bool WriteBack, const int Regnum, ...)
 {
 	u16 RegList = 0;
-	u8 Reg;
-	int i;
+
 	va_list vl;
 	va_start(vl, Regnum);
-	for (i=0;i<Regnum;i++)
+	for (int i = 0; i < Regnum; i++)
 	{
-		Reg = va_arg(vl, u32);
+		u8 Reg = va_arg(vl, u32);
 		RegList |= (1 << Reg);
 	}
 	va_end(vl);
+
 	WriteRegStoreOp(0x89, dest, WriteBack, RegList);
 }
 
@@ -959,7 +1003,7 @@ void ARMXEmitter::WriteVFPDataOp(u32 Op, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 	VFPEnc enc = VFPOps[Op][quad_reg];
 	if (enc.opc1 == -1 && enc.opc2 == -1)
-		_dbg_assert_msg_(DYNA_REC, false, "%s does not support %s", VFPOpNames[Op], quad_reg ? "NEON" : "VFP");
+		_assert_msg_(DYNA_REC, false, "%s does not support %s", VFPOpNames[Op], quad_reg ? "NEON" : "VFP");
 	u32 VdEnc = EncodeVd(Vd);
 	u32 VnEnc = EncodeVn(Vn);
 	u32 VmEnc = EncodeVm(Vm);
@@ -974,7 +1018,7 @@ void ARMXEmitter::WriteVFPDataOp6bit(u32 Op, ARMReg Vd, ARMReg Vn, ARMReg Vm, u3
 
 	VFPEnc enc = VFPOps[Op][quad_reg];
 	if (enc.opc1 == -1 && enc.opc2 == -1)
-		_dbg_assert_msg_(DYNA_REC, false, "%s does not support %s", VFPOpNames[Op], quad_reg ? "NEON" : "VFP");
+		_assert_msg_(DYNA_REC, false, "%s does not support %s", VFPOpNames[Op], quad_reg ? "NEON" : "VFP");
 	u32 VdEnc = EncodeVd(Vd);
 	u32 VnEnc = EncodeVn(Vn);
 	u32 VmEnc = EncodeVm(Vm);
@@ -1002,13 +1046,13 @@ void ARMXEmitter::VCMPE(ARMReg Vd){ WriteVFPDataOp6bit(13, Vd, D5, D0, 1); }
 
 void ARMXEmitter::VLDR(ARMReg Dest, ARMReg Base, s16 offset)
 {
-	_dbg_assert_msg_(DYNA_REC, Dest >= S0 && Dest <= D31, "Passed Invalid dest register to VLDR");
-	_dbg_assert_msg_(DYNA_REC, Base <= R15, "Passed invalid Base register to VLDR");
+	_assert_msg_(DYNA_REC, Dest >= S0 && Dest <= D31, "Passed Invalid dest register to VLDR");
+	_assert_msg_(DYNA_REC, Base <= R15, "Passed invalid Base register to VLDR");
 
 	bool Add = offset >= 0 ? true : false;
 	u32 imm = abs(offset);
 
-	_dbg_assert_msg_(DYNA_REC, (imm & 0xC03) == 0, "VLDR: Offset needs to be word aligned and small enough");
+	_assert_msg_(DYNA_REC, (imm & 0xC03) == 0, "VLDR: Offset needs to be word aligned and small enough");
 
 	if (imm & 0xC03)
 		ERROR_LOG(DYNA_REC, "VLDR: Bad offset %08x", imm);
@@ -1030,13 +1074,13 @@ void ARMXEmitter::VLDR(ARMReg Dest, ARMReg Base, s16 offset)
 }
 void ARMXEmitter::VSTR(ARMReg Src, ARMReg Base, s16 offset)
 {
-	_dbg_assert_msg_(DYNA_REC, Src >= S0 && Src <= D31, "Passed invalid src register to VSTR");
-	_dbg_assert_msg_(DYNA_REC, Base <= R15, "Passed invalid base register to VSTR");
+	_assert_msg_(DYNA_REC, Src >= S0 && Src <= D31, "Passed invalid src register to VSTR");
+	_assert_msg_(DYNA_REC, Base <= R15, "Passed invalid base register to VSTR");
 
 	bool Add = offset >= 0 ? true : false;
 	u32 imm = abs(offset);
 
-	_dbg_assert_msg_(DYNA_REC, (imm & 0xC03) == 0, "VSTR: Offset needs to be word aligned and small enough");
+	_assert_msg_(DYNA_REC, (imm & 0xC03) == 0, "VSTR: Offset needs to be word aligned and small enough");
 
 	if (imm & 0xC03)
 		ERROR_LOG(DYNA_REC, "VSTR: Bad offset %08x", imm);
@@ -1057,24 +1101,27 @@ void ARMXEmitter::VSTR(ARMReg Src, ARMReg Base, s16 offset)
 	}
 }
 
-void ARMXEmitter::VMRS(ARMReg Rt) {
+void ARMXEmitter::VMRS(ARMReg Rt)
+{
 	Write32(condition | (0xEF << 20) | (1 << 16) | (Rt << 12) | 0xA10);
 }
-void ARMXEmitter::VMSR(ARMReg Rt) {
+
+void ARMXEmitter::VMSR(ARMReg Rt)
+{
 	Write32(condition | (0xEE << 20) | (1 << 16) | (Rt << 12) | 0xA10);
 }
 
 // VFP and ASIMD
 void ARMXEmitter::VMOV(ARMReg Dest, Operand2 op2)
 {
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bVFPv3, "VMOV #imm requires VFPv3");
+	_assert_msg_(DYNA_REC, cpu_info.bVFPv3, "VMOV #imm requires VFPv3");
 	bool double_reg = Dest >= D0;
 	Write32(condition | (0xEB << 20) | EncodeVd(Dest) | (0x5 << 9) | (double_reg << 8) | op2.Imm8VFP());
 }
 void ARMXEmitter::VMOV(ARMReg Dest, ARMReg Src, bool high)
 {
-	_dbg_assert_msg_(DYNA_REC, Src < S0, "This VMOV doesn't support SRC other than ARM Reg");
-	_dbg_assert_msg_(DYNA_REC, Dest >= D0, "This VMOV doesn't support DEST other than VFP");
+	_assert_msg_(DYNA_REC, Src < S0, "This VMOV doesn't support SRC other than ARM Reg");
+	_assert_msg_(DYNA_REC, Dest >= D0, "This VMOV doesn't support DEST other than VFP");
 
 	Dest = SubBase(Dest);
 
@@ -1132,7 +1179,7 @@ void ARMXEmitter::VMOV(ARMReg Dest, ARMReg Src)
 		else
 		{
 			// Move Arm reg to Arm reg
-			_dbg_assert_msg_(DYNA_REC, false, "VMOV doesn't support moving ARM registers");
+			_assert_msg_(DYNA_REC, false, "VMOV doesn't support moving ARM registers");
 		}
 	}
 	// Moving NEON registers
@@ -1142,7 +1189,7 @@ void ARMXEmitter::VMOV(ARMReg Dest, ARMReg Src)
 	bool Single = DestSize == 1;
 	bool Quad = DestSize == 4;
 
-	_dbg_assert_msg_(DYNA_REC, SrcSize == DestSize, "VMOV doesn't support moving different register sizes");
+	_assert_msg_(DYNA_REC, SrcSize == DestSize, "VMOV doesn't support moving different register sizes");
 
 	Dest = SubBase(Dest);
 	Src = SubBase(Src);
@@ -1157,7 +1204,7 @@ void ARMXEmitter::VMOV(ARMReg Dest, ARMReg Src)
 		// Double and quad
 		if (Quad)
 		{
-			_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Trying to use quad registers when you don't support ASIMD.");
+			_assert_msg_(DYNA_REC, cpu_info.bNEON, "Trying to use quad registers when you don't support ASIMD.");
 			// Gets encoded as a Double register
 			Write32((0xF2 << 24) | ((Dest & 0x10) << 18) | (2 << 20) | ((Src & 0xF) << 16) \
 				| ((Dest & 0xF) << 12) | (1 << 8) | ((Src & 0x10) << 3) | (1 << 6) \
@@ -1191,26 +1238,33 @@ void ARMXEmitter::VCVT(ARMReg Dest, ARMReg Source, int flags)
 			{
 				Write32(condition | (0x1D << 23) | ((Dest & 0x10) << 18) | (0x7 << 19) \
 					| ((Dest & 0xF) << 12) | (op << 7) | (0x2D << 6) | ((Source & 0x1) << 5) | (Source >> 1));
-			} else {
+			}
+			else
+			{
 				Write32(condition | (0x1D << 23) | ((Dest & 0x1) << 22) | (0x7 << 19) | ((flags & TO_INT) << 18) | (op2 << 16) \
 					| ((Dest & 0x1E) << 11) | (op << 7) | (0x2D << 6) | ((Source & 0x10) << 1) | (Source & 0xF));
 			}
 		}
-		// F32<->F64
-		else {
+		else // F32<->F64
+		{
 			if (single_to_double)
 			{
 				Write32(condition | (0x1D << 23) | ((Dest & 0x10) << 18) | (0x3 << 20) | (0x7 << 16) \
 					| ((Dest & 0xF) << 12) | (0x2B << 6) | ((Source & 0x1) << 5) | (Source >> 1));
-			} else {
+			}
+			else
+			{
 				Write32(condition | (0x1D << 23) | ((Dest & 0x1) << 22) | (0x3 << 20) | (0x7 << 16) \
 					| ((Dest & 0x1E) << 11) | (0x2F << 6) | ((Source & 0x10) << 1) | (Source & 0xF));
 			}
 		}
-	} else if (single_reg) {
+	} else if (single_reg)
+	{
 		Write32(condition | (0x1D << 23) | ((Dest & 0x1) << 22) | (0x7 << 19) | ((flags & TO_INT) << 18) | (op2 << 16) \
 			| ((Dest & 0x1E) << 11) | (op << 7) | (0x29 << 6) | ((Source & 0x1) << 5) | (Source >> 1));
-	} else {
+	}
+	else
+	{
 		Write32(condition | (0x1D << 23) | ((Dest & 0x10) << 18) | (0x7 << 19) | ((flags & TO_INT) << 18) | (op2 << 16) \
 			| ((Dest & 0xF) << 12) | (1 << 8) | (op << 7) | (0x29 << 6) | ((Source & 0x10) << 1) | (Source & 0xF));
 	}
@@ -1218,9 +1272,9 @@ void ARMXEmitter::VCVT(ARMReg Dest, ARMReg Source, int flags)
 
 void NEONXEmitter::VABA(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | EncodeVn(Vn) \
@@ -1229,11 +1283,11 @@ void NEONXEmitter::VABA(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VABAL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (1 << 23) | EncodeVn(Vn) \
 		| (encodedSize(Size) << 20) | EncodeVd(Vd) | (0x50 << 4) | EncodeVm(Vm));
@@ -1241,8 +1295,8 @@ void NEONXEmitter::VABAL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VABD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	if (Size & F_32)
@@ -1254,11 +1308,11 @@ void NEONXEmitter::VABD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VABDL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (1 << 23) | EncodeVn(Vn) \
 		| (encodedSize(Size) << 20) | EncodeVd(Vd) | (0x70 << 4) | EncodeVm(Vm));
@@ -1266,8 +1320,8 @@ void NEONXEmitter::VABDL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VABS(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | (0xB1 << 16) | (encodedSize(Size) << 18) | EncodeVd(Vd) \
@@ -1277,8 +1331,8 @@ void NEONXEmitter::VABS(u32 Size, ARMReg Vd, ARMReg Vm)
 void NEONXEmitter::VACGE(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
 	// Only Float
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | EncodeVn(Vn) | EncodeVd(Vd) \
@@ -1288,8 +1342,8 @@ void NEONXEmitter::VACGE(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 void NEONXEmitter::VACGT(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
 	// Only Float
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | (1 << 21) | EncodeVn(Vn) | EncodeVd(Vd) \
@@ -1308,8 +1362,8 @@ void NEONXEmitter::VACLT(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1322,11 +1376,11 @@ void NEONXEmitter::VADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VADDHN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) \
 		| EncodeVd(Vd) | (0x80 << 4) | EncodeVm(Vm));
@@ -1334,75 +1388,75 @@ void NEONXEmitter::VADDHN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 
 void NEONXEmitter::VADDL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= D0 && Vn < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) \
 		| EncodeVd(Vd) | EncodeVm(Vm));
 }
 void NEONXEmitter::VADDW(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) \
 		| EncodeVd(Vd) | (1 << 8) | EncodeVm(Vm));
 }
 void NEONXEmitter::VAND(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VBIC(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | (1 << 20) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VBIF(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | (3 << 20) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VBIT(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | (2 << 20) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VBSL(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | (1 << 20) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VCEQ(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	if (Size & F_32)
@@ -1414,8 +1468,8 @@ void NEONXEmitter::VCEQ(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VCEQ(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1424,8 +1478,8 @@ void NEONXEmitter::VCEQ(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VCGE(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	if (Size & F_32)
@@ -1436,8 +1490,8 @@ void NEONXEmitter::VCGE(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VCGE(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xB << 20) | (encodedSize(Size) << 18) | (1 << 16) \
@@ -1445,8 +1499,8 @@ void NEONXEmitter::VCGE(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VCGT(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	if (Size & F_32)
@@ -1457,8 +1511,8 @@ void NEONXEmitter::VCGT(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VCGT(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) | (1 << 16) \
@@ -1470,8 +1524,8 @@ void NEONXEmitter::VCLE(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VCLE(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) | (1 << 16) \
@@ -1479,9 +1533,9 @@ void NEONXEmitter::VCLE(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VCLS(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) \
@@ -1493,8 +1547,8 @@ void NEONXEmitter::VCLT(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VCLT(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) | (1 << 16) \
@@ -1502,8 +1556,8 @@ void NEONXEmitter::VCLT(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VCLZ(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) \
@@ -1511,9 +1565,9 @@ void NEONXEmitter::VCLZ(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VCNT(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, Size & I_8, "Can only use I_8 with " __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Size & I_8, "Can only use I_8 with %s", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Write32((0xF3 << 24) | (0xD << 20) | (encodedSize(Size) << 18) \
@@ -1521,8 +1575,8 @@ void NEONXEmitter::VCNT(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VDUP(u32 Size, ARMReg Vd, ARMReg Vm, u8 index)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	u32 sizeEncoded = 0, indexEncoded = 0;
@@ -1543,9 +1597,9 @@ void NEONXEmitter::VDUP(u32 Size, ARMReg Vd, ARMReg Vm, u8 index)
 }
 void NEONXEmitter::VDUP(u32 Size, ARMReg Vd, ARMReg Rt)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Rt < D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Rt < D0, "Pass invalid register to %s", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Vd = SubBase(Vd);
@@ -1562,16 +1616,18 @@ void NEONXEmitter::VDUP(u32 Size, ARMReg Vd, ARMReg Rt)
 }
 void NEONXEmitter::VEOR(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF3 << 24) | EncodeVn(Vn) | EncodeVd(Vd) | (0x11 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VEXT(ARMReg Vd, ARMReg Vn, ARMReg Vm, u8 index)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | (0xB << 20) | EncodeVn(Vn) | EncodeVd(Vd) | (index & 0xF) \
@@ -1579,27 +1635,28 @@ void NEONXEmitter::VEXT(ARMReg Vd, ARMReg Vn, ARMReg Vm, u8 index)
 }
 void NEONXEmitter::VFMA(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bVFPv4, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bVFPv4, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | EncodeVn(Vn) | EncodeVd(Vd) | (0xC1 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VFMS(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bVFPv4, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bVFPv4, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 	bool register_quad = Vd >= Q0;
 
 	Write32((0xF2 << 24) | (1 << 21) | EncodeVn(Vn) | EncodeVd(Vd) | (0xC1 << 4) | (register_quad << 6) | EncodeVm(Vm));
 }
 void NEONXEmitter::VHADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1608,9 +1665,9 @@ void NEONXEmitter::VHADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VHSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1619,8 +1676,8 @@ void NEONXEmitter::VHSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMAX(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1632,8 +1689,8 @@ void NEONXEmitter::VMAX(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMIN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1645,8 +1702,8 @@ void NEONXEmitter::VMIN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMLA(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1657,8 +1714,8 @@ void NEONXEmitter::VMLA(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMLS(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1669,30 +1726,30 @@ void NEONXEmitter::VMLS(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMLAL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (encodedSize(Size) << 20) \
 		| EncodeVn(Vn) | EncodeVd(Vd) | (0x80 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VMLSL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float.");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vn >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, Vm >= D0 && Vm < Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | ((Size & I_UNSIGNED ? 1 : 0) << 24) | (encodedSize(Size) << 20) \
 		| EncodeVn(Vn) | EncodeVd(Vd) | (0xA0 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VMUL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1704,17 +1761,17 @@ void NEONXEmitter::VMUL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VMULL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0xC0 << 4) | ((Size & I_POLYNOMIAL) ? 1 << 9 : 0) | EncodeVm(Vm));
 }
 void NEONXEmitter::VNEG(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1723,8 +1780,8 @@ void NEONXEmitter::VNEG(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VORN(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1732,8 +1789,8 @@ void NEONXEmitter::VORN(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VORR(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1741,9 +1798,9 @@ void NEONXEmitter::VORR(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VPADAL(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1752,8 +1809,8 @@ void NEONXEmitter::VPADAL(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VPADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	if (Size & F_32)
 		Write32((0xF3 << 24) | EncodeVn(Vn) | EncodeVd(Vd) | (0xD0 << 4) | EncodeVm(Vm));
@@ -1763,9 +1820,9 @@ void NEONXEmitter::VPADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VPADDL(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1774,8 +1831,8 @@ void NEONXEmitter::VPADDL(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VPMAX(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	if (Size & F_32)
 		Write32((0xF3 << 24) | EncodeVn(Vn) | EncodeVd(Vd) | (0xF0 << 4) | EncodeVm(Vm));
@@ -1785,8 +1842,8 @@ void NEONXEmitter::VPMAX(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VPMIN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	if (Size & F_32)
 		Write32((0xF3 << 24) | (1 << 21) | EncodeVn(Vn) | EncodeVd(Vd) | (0xF0 << 4) | EncodeVm(Vm));
@@ -1796,9 +1853,9 @@ void NEONXEmitter::VPMIN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VQABS(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1807,9 +1864,9 @@ void NEONXEmitter::VQABS(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VQADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1818,45 +1875,45 @@ void NEONXEmitter::VQADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VQDMLAL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x90 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VQDMLSL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0xB0 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VQDMULH(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0xB0 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VQDMULL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0xD0 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VQNEG(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1865,18 +1922,18 @@ void NEONXEmitter::VQNEG(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VQRDMULH(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF3 << 24) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0xB0 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VQRSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1885,9 +1942,9 @@ void NEONXEmitter::VQRSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VQSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1896,9 +1953,9 @@ void NEONXEmitter::VQSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VQSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1907,17 +1964,17 @@ void NEONXEmitter::VQSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VRADDHN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF3 << 24) | (1 << 23) | ((encodedSize(Size) - 1) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x40 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VRECPE(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1926,8 +1983,8 @@ void NEONXEmitter::VRECPE(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VRECPS(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1935,9 +1992,9 @@ void NEONXEmitter::VRECPS(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VRHADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1946,9 +2003,9 @@ void NEONXEmitter::VRHADD(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VRSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1957,8 +2014,8 @@ void NEONXEmitter::VRSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VRSQRTE(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 	Vd = SubBase(Vd);
@@ -1970,8 +2027,8 @@ void NEONXEmitter::VRSQRTE(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VRSQRTS(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -1980,18 +2037,18 @@ void NEONXEmitter::VRSQRTS(ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VRSUBHN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	Write32((0xF3 << 24) | (1 << 23) | ((encodedSize(Size) - 1) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x60 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
-	_dbg_assert_msg_(DYNA_REC, !(Size & F_32), __FUNCTION__ " doesn't support float");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
+	_assert_msg_(DYNA_REC, !(Size & F_32), "%s doesn't support float.", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2000,8 +2057,8 @@ void NEONXEmitter::VSHL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2014,32 +2071,32 @@ void NEONXEmitter::VSUB(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VSUBHN(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (1 << 23) | ((encodedSize(Size) - 1) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x60 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VSUBL(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (Size & I_UNSIGNED ? 1 << 24 : 0) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x20 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VSUBW(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	Write32((0xF2 << 24) | (Size & I_UNSIGNED ? 1 << 24 : 0) | (1 << 23) | (encodedSize(Size) << 20) | EncodeVn(Vn) | EncodeVd(Vd) | \
 			(0x30 << 4) | EncodeVm(Vm));
 }
 void NEONXEmitter::VSWP(ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2048,8 +2105,8 @@ void NEONXEmitter::VSWP(ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VTRN(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2058,8 +2115,8 @@ void NEONXEmitter::VTRN(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VTST(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2068,8 +2125,8 @@ void NEONXEmitter::VTST(u32 Size, ARMReg Vd, ARMReg Vn, ARMReg Vm)
 }
 void NEONXEmitter::VUZP(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 
@@ -2078,8 +2135,8 @@ void NEONXEmitter::VUZP(u32 Size, ARMReg Vd, ARMReg Vm)
 }
 void NEONXEmitter::VZIP(u32 Size, ARMReg Vd, ARMReg Vm)
 {
-	_dbg_assert_msg_(DYNA_REC, Vd >= Q0, "Pass invalid register to " __FUNCTION__);
-	_dbg_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use " __FUNCTION__ " when CPU doesn't support it");
+	_assert_msg_(DYNA_REC, Vd >= D0, "Pass invalid register to %s", __FUNCTION__);
+	_assert_msg_(DYNA_REC, cpu_info.bNEON, "Can't use %s when CPU doesn't support it", __FUNCTION__);
 
 	bool register_quad = Vd >= Q0;
 

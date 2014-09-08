@@ -46,6 +46,7 @@ Window cX11Window::CreateXWindow(Window parent, XVisualInfo *vi)
 void cX11Window::DestroyXWindow(void)
 {
 	XUnmapWindow(dpy, win);
+	win = 0;
 	if (xEventThread.joinable())
 		xEventThread.join();
 	XFreeColormap(dpy, colormap);
@@ -59,13 +60,14 @@ void cX11Window::XEventThread()
 		for (int num_events = XPending(dpy); num_events > 0; num_events--)
 		{
 			XNextEvent(dpy, &event);
-			switch (event.type) {
-				case ConfigureNotify:
-					XResizeWindow(dpy, win, event.xconfigure.width, event.xconfigure.height);
-					GLInterface->SetBackBufferDimensions(event.xconfigure.width, event.xconfigure.height);
-					break;
-				default:
-					break;
+			switch (event.type)
+			{
+			case ConfigureNotify:
+				XResizeWindow(dpy, win, event.xconfigure.width, event.xconfigure.height);
+				GLInterface->SetBackBufferDimensions(event.xconfigure.width, event.xconfigure.height);
+				break;
+			default:
+				break;
 			}
 		}
 		Common::SleepCurrentThread(20);

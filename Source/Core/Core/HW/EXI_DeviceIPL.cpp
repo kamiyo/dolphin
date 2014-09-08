@@ -338,7 +338,7 @@ u32 CEXIIPL::GetGCTime()
 	u64 ltime = 0;
 	static const u32 cJanuary2000 = 0x386D4380;  // Seconds between 1.1.1970 and 1.1.2000
 
-	if (Movie::IsRecordingInput() || Movie::IsPlayingInput())
+	if (Movie::IsMovieActive())
 	{
 		ltime = Movie::GetRecordingStartTime();
 
@@ -352,6 +352,8 @@ u32 CEXIIPL::GetGCTime()
 
 		if (0 == ltime)
 			ltime = Common::Timer::GetLocalTimeSinceJan1970();
+		else
+			ltime += CoreTiming::GetTicks() / SystemTimers::GetTicksPerSecond();
 	}
 
 	return ((u32)ltime - cJanuary2000);

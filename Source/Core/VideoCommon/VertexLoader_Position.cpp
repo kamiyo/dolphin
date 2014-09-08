@@ -165,7 +165,7 @@ static int tableReadPositionVertexSize[4][8][2] = {
 };
 
 
-void VertexLoader_Position::Init(void)
+void VertexLoader_Position::Init()
 {
 
 #if _M_SSE >= 0x301
@@ -182,12 +182,12 @@ void VertexLoader_Position::Init(void)
 
 }
 
-unsigned int VertexLoader_Position::GetSize(unsigned int _type, unsigned int _format, unsigned int _elements)
+unsigned int VertexLoader_Position::GetSize(u64 _type, unsigned int _format, unsigned int _elements)
 {
 	return tableReadPositionVertexSize[_type][_format][_elements];
 }
 
-TPipelineFunction VertexLoader_Position::GetFunction(unsigned int _type, unsigned int _format, unsigned int _elements)
+TPipelineFunction VertexLoader_Position::GetFunction(u64 _type, unsigned int _format, unsigned int _elements)
 {
 	return tableReadPosition[_type][_format][_elements];
 }

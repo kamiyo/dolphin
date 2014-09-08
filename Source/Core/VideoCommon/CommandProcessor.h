@@ -135,12 +135,11 @@ void DoState(PointerWrap &p);
 
 void RegisterMMIO(MMIO::Mapping* mmio, u32 base);
 
-void SetCpStatus(bool isCPUThread = false);
+void SetCPStatusFromGPU();
+void SetCPStatusFromCPU();
 void GatherPipeBursted();
 void UpdateInterrupts(u64 userdata);
 void UpdateInterruptsFromVideoBackend(u64 userdata);
-
-bool AllowIdleSkipping();
 
 void SetCpClearRegister();
 void SetCpControlRegister();

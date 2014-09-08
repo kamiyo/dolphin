@@ -238,7 +238,7 @@ wxTextCtrl* CLogWindow::CreateTextCtrl(wxPanel* parent, wxWindowID id, long Styl
 #ifdef __APPLE__
 	TC->SetBackgroundColour(*wxLIGHT_GREY);
 #else
-	TC->SetBackgroundColour(*wxBLACK);
+	TC->SetBackgroundColour(*wxLIGHT_GREY);
 #endif
 	if (m_FontChoice && m_FontChoice->GetSelection() < (int)LogFont.size() && m_FontChoice->GetSelection() >= 0)
 		TC->SetDefaultStyle(wxTextAttr(wxNullColour, wxNullColour, LogFont[m_FontChoice->GetSelection()]));
@@ -314,23 +314,23 @@ void CLogWindow::UpdateLog()
 	{
 		switch (msgQueue.front().first)
 		{
-			case ERROR_LEVEL:
+			case LogTypes::LOG_LEVELS::LERROR:
 				m_Log->SetDefaultStyle(wxTextAttr(*wxRED));
 				break;
 
-			case WARNING_LEVEL:
+			case LogTypes::LOG_LEVELS::LWARNING:
 				m_Log->SetDefaultStyle(wxTextAttr(*wxYELLOW));
 				break;
 
-			case NOTICE_LEVEL:
-				m_Log->SetDefaultStyle(wxTextAttr(*wxGREEN));
+			case LogTypes::LOG_LEVELS::LNOTICE:
+				m_Log->SetDefaultStyle(wxTextAttr(*wxBLACK));
 				break;
 
-			case INFO_LEVEL:
+			case LogTypes::LOG_LEVELS::LINFO:
 				m_Log->SetDefaultStyle(wxTextAttr(*wxCYAN));
 				break;
 
-			case DEBUG_LEVEL:
+			case LogTypes::LOG_LEVELS::LDEBUG:
 				m_Log->SetDefaultStyle(wxTextAttr(*wxLIGHT_GREY));
 				break;
 

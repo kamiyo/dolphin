@@ -85,7 +85,7 @@ static void Trace(UGeckoInstruction& instCode)
 	DEBUG_LOG(POWERPC, "INTER PC: %08x SRR0: %08x SRR1: %08x CRval: %016lx FPSCR: %08x MSR: %08x LR: %08x %s %08x %s", PC, SRR0, SRR1, (unsigned long) PowerPC::ppcState.cr_val[0], PowerPC::ppcState.fpscr, PowerPC::ppcState.msr, PowerPC::ppcState.spr[8], regs.c_str(), instCode.hex, ppc_inst.c_str());
 }
 
-int Interpreter::SingleStepInner(void)
+int Interpreter::SingleStepInner()
 {
 	static UGeckoInstruction instCode;
 	u32 function = HLE::GetFunctionIndex(PC);
@@ -179,13 +179,6 @@ int Interpreter::SingleStepInner(void)
 	last_pc = PC;
 	PC = NPC;
 
-#if defined(_DEBUG) || defined(DEBUGFAST)
-	if (PowerPC::ppcState.gpr[1] == 0)
-	{
-		WARN_LOG(POWERPC, "%i Corrupt stack", PowerPC::ppcState.DebugCount);
-	}
-	PowerPC::ppcState.DebugCount++;
-#endif
 	patches();
 
 	GekkoOPInfo *opinfo = GetOpInfo(instCode);
@@ -312,7 +305,7 @@ void Interpreter::unknown_instruction(UGeckoInstruction _inst)
 		std::string disasm = GekkoDisassembler::Disassemble(Memory::ReadUnchecked_U32(last_pc), last_pc);
 		NOTICE_LOG(POWERPC, "Last PC = %08x : %s", last_pc, disasm.c_str());
 		Dolphin_Debugger::PrintCallstack();
-		_dbg_assert_msg_(POWERPC, 0, "\nIntCPU: Unknown instruction %08x at PC = %08x  last_PC = %08x  LR = %08x\n", _inst.hex, PC, last_pc, LR);
+		_assert_msg_(POWERPC, 0, "\nIntCPU: Unknown instruction %08x at PC = %08x  last_PC = %08x  LR = %08x\n", _inst.hex, PC, last_pc, LR);
 	}
 
 }

@@ -132,7 +132,6 @@ static void GetShaders(std::vector<std::string> &shaders)
 static void InitBackendInfo()
 {
 	g_Config.backend_info.APIType = API_OPENGL;
-	g_Config.backend_info.bUseRGBATextures = true;
 	g_Config.backend_info.bUseMinimalMipCount = false;
 	g_Config.backend_info.bSupportsExclusiveFullscreen = false;
 	//g_Config.backend_info.bSupportsDualSourceBlend = true; // is gpu dependent and must be set in renderer
@@ -189,10 +188,6 @@ void VideoBackend::Video_Prepare()
 
 	g_renderer = new Renderer;
 
-	s_efbAccessRequested = false;
-	s_FifoShuttingDown = false;
-	s_swapRequested = false;
-
 	CommandProcessor::Init();
 	PixelEngine::Init();
 
@@ -230,9 +225,6 @@ void VideoBackend::Video_Cleanup()
 {
 	if (g_renderer)
 	{
-		s_efbAccessRequested = false;
-		s_FifoShuttingDown = false;
-		s_swapRequested = false;
 		Fifo_Shutdown();
 
 		// The following calls are NOT Thread Safe
