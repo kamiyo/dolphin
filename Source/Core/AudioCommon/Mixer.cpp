@@ -106,6 +106,8 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 
 	float lvolume = (float) m_LVolume / 256.f;
 	float rvolume = (float) m_RVolume / 256.f;
+	s32 lIvolume = m_LVolume;
+	s32 rIvolume = m_RVolume;
 
 	m_errorL1 = 0, m_errorL2 = 0;
 	m_errorR1 = 0, m_errorR2 = 0;
@@ -199,15 +201,15 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 	short s[2];
 	s[0] = Common::swap16(m_buffer[(indexR - 1) & INDEX_MASK]);
 	s[1] = Common::swap16(m_buffer[(indexR - 2) & INDEX_MASK]);
-	s[0] = (s[0] * m_RVolume) >> 8;
-	s[1] = (s[1] * m_LVolume) >> 8;
+	s[0] = (s[0] * rIvolume) >> 8;
+	s[1] = (s[1] * lIvolume) >> 8;
 	for (; currentSample < numSamples * 2; currentSample += 2)
 	{
 		int sampleR = s[0] + samples[currentSample];
-		MathUtil::Clamp(&sampleR, -32767, 32767);
+		MathUtil::Clamp(&sampleR, -32768, 32767);
 		samples[currentSample] = sampleR;
 		int sampleL = s[1] + samples[currentSample + 1];
-		MathUtil::Clamp(&sampleL, -32767, 32767);
+		MathUtil::Clamp(&sampleL, -32768, 32767);
 		samples[currentSample + 1] = sampleL;
 	}
 
