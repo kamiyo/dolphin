@@ -15,8 +15,8 @@
 // UGLINESS
 #include "Core/PowerPC/PowerPC.h"
 
-#if _M_SSE >= 0x301 && !(defined __GNUC__ && !defined __SSSE3__)
-#include <tmmintrin.h>
+#if _M_SSE >= 0x401 && !(defined __GNUC__ && !defined __SSE41__)
+#include <smmintrin.h>
 #endif
 
 float CMixer::MixerFifo::twos2float(u16 s) {
@@ -117,11 +117,12 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		int index = (int) (m_frac * SINC_FSIZE);
 		const float* table0 = m_sinc_table[index];
 		const float* table1 = m_sinc_table[index + 1];
-		float difference = m_frac - index;
-		__m128 t0 = _mm_load_ps(&table0[1]);
-		__m128 t1 = _mm_load_ps(&table1[1]);
-		__m128 tr = _mm_add_ps(t0, _mm_mul_ps(_mm_sub_ps(t1, t0), _mm_load1_ps(&difference)));
-		__m128 tl = tr;
+		const float difference = m_frac - index;
+
+		float t1 = difference * (table1[0] - table0[0]) + table0[0];
+		float t2 = difference * (table1[1] - table0[1]) + table0[1];
+		float t3 = difference * (table1[2] - table0[2]) + table0[2];
+		float t4 = difference * (table1[3] - table0[3]) + table0[3];
 
 		// again, don't need sample -2 because it'll always be multiplied by 0
 		u32 indexRp = indexR - 2; // sample -1
@@ -134,16 +135,14 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		float sl2 = float_buffer[(indexR) & INDEX_MASK];
 		float sl3 = float_buffer[(indexR2) & INDEX_MASK];
 		float sl4 = float_buffer[(indexR4) & INDEX_MASK];
-		float* l = nullptr;
-		_mm_store_ps(l, _mm_dp_ps(_mm_set_ps(sl1, sl2, sl3, sl4), tl, DPPS_MASK));
-		/*
-		float al = sl1 * table[0];
-		float bl = sl2 * table[1];
-		float cl = sl3 * table[2];
-		float dl = sl4 * table[3];
+		
+		float al = sl1 * t1;
+		float bl = sl2 * t2;
+		float cl = sl3 * t3;
+		float dl = sl4 * t4;
 		float sampleL = al + bl + cl + dl;
-		*/
-		float sampleL = l[0];
+		
+		//float sampleL = l[0];
 		sampleL = sampleL * lvolume;
 		sampleL += twos2float(samples[currentSample + 1]);
 
@@ -167,17 +166,15 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		float sr2 = float_buffer[(indexR + 1) & INDEX_MASK];
 		float sr3 = float_buffer[(indexR2 + 1) & INDEX_MASK];
 		float sr4 = float_buffer[(indexR4 + 1) & INDEX_MASK];
-		float* r = nullptr;
-		_mm_store_ps(r, _mm_dp_ps(_mm_set_ps(sr1, sr2, sr3, sr4), tr, DPPS_MASK));
-		/*
-		float ar = sr1 * table[0];
-		float br = sr2 * table[1];
-		float cr = sr3 * table[2];
-		float dr = sr4 * table[3];
+		
+		float ar = sr1 * t1;
+		float br = sr2 * t2;
+		float cr = sr3 * t3;
+		float dr = sr4 * t4;
 		float sampleR = ar + br + cr + dr;
-		*/
+		
 
-		float sampleR = r[0];
+		//float sampleR = r[0];
 		sampleR = sampleR * rvolume;
 		sampleR += twos2float(samples[currentSample]);
 
