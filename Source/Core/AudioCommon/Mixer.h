@@ -18,6 +18,19 @@
 #define CONTROL_FACTOR  0.2f // in freq_shift per fifo size offset
 #define CONTROL_AVG     32
 
+#define SINC_FSIZE		65536	// sinc table granularity = 1 / SINC_FSIZE.
+#define SINC_SIZE		(5 - 1) // see comment for populate_sinc_table()
+#define DPPS_MASK		0xF1	   // tells DPPS to apply to all inputs, and store in 1st index
+// Dither defines
+#define DITHER_SHAPE	0.5f
+#define DITHER_WORD		(0xFFFF)
+#define DITHER_WIDTH	1.f / DITHER_WORD
+#define DITHER_SIZE		DITHER_WIDTH / RAND_MAX
+#define DITHER_OFFSET	DITHER_WIDTH * DITHER_SHAPE
+#ifndef M_PI
+#define M_PI  3.14159265358979323846
+#endif
+
 class CMixer {
 
 public:
@@ -126,22 +139,37 @@ protected:
 			, m_frac(0)
 		{
 			memset(m_buffer, 0, sizeof(m_buffer));
+			srand((u32) time(NULL));
+			memset(float_buffer, 0, sizeof(float_buffer));
+			memset(m_sinc_table, 0, sizeof(m_sinc_table));
+			populate_sinc_table();
 		}
 		void PushSamples(const short* samples, unsigned int num_samples);
 		unsigned int Mix(short* samples, unsigned int numSamples, bool consider_framelimit = true);
 		void SetInputSampleRate(unsigned int rate);
 		void SetVolume(unsigned int lvolume, unsigned int rvolume);
+		void populateFloats(u32 start, u32 stop);
+		float twos2float(u16 s);
+		s16 float2stwos(float f);
 	private:
+		float sinc_sinc(float x, float window_width);
+		void populate_sinc_table();
 		CMixer *m_mixer;
 		unsigned m_input_sample_rate;
+		float float_buffer[MAX_SAMPLES * 2];
+		float m_sinc_table[SINC_FSIZE][SINC_SIZE];
 		short m_buffer[MAX_SAMPLES * 2];
 		volatile u32 m_indexW;
 		volatile u32 m_indexR;
+		u32 m_previousW;
 		// Volume ranges from 0-256
 		volatile s32 m_LVolume;
 		volatile s32 m_RVolume;
 		float m_numLeftI;
-		u32 m_frac;
+		float m_frac;
+		int m_randL1, m_randL2, m_randR1, m_randR2;
+		float m_errorL1, m_errorL2;
+		float m_errorR1, m_errorR2;
 	};
 	MixerFifo m_dma_mixer;
 	MixerFifo m_streaming_mixer;
