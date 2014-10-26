@@ -15,8 +15,8 @@
 // UGLINESS
 #include "Core/PowerPC/PowerPC.h"
 
-#if _M_SSE >= 0x401 && !(defined __GNUC__ && !defined __SSE41__)
-#include <smmintrin.h>
+#if _M_SSE >= 0x301 && !(defined __GNUC__ && !defined __SSSE3__)
+#include <tmmintrin.h>
 #endif
 
 float CMixer::MixerFifo::twos2float(u16 s) {
@@ -118,13 +118,6 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		// get sinc table with *closest* desired offset
 		int index = (int) (m_frac * SINC_FSIZE);
 		const float* table0 = m_sinc_table[index];
-		const float* table1 = m_sinc_table[index + 1];
-		const float difference = m_frac - index;
-
-		float t1 = difference * (table1[0] - table0[0]) + table0[0];
-		float t2 = difference * (table1[1] - table0[1]) + table0[1];
-		float t3 = difference * (table1[2] - table0[2]) + table0[2];
-		float t4 = difference * (table1[3] - table0[3]) + table0[3];
 
 		// again, don't need sample -2 because it'll always be multiplied by 0
 		u32 indexRp = indexR - 2; // sample -1
@@ -138,10 +131,10 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		float sl3 = float_buffer[(indexR2) & INDEX_MASK];
 		float sl4 = float_buffer[(indexR4) & INDEX_MASK];
 		
-		float al = sl1 * t1;
-		float bl = sl2 * t2;
-		float cl = sl3 * t3;
-		float dl = sl4 * t4;
+		float al = sl1 * table0[0];
+		float bl = sl2 * table0[1];
+		float cl = sl3 * table0[2];
+		float dl = sl4 * table0[3];
 		float sampleL = al + bl + cl + dl;
 		
 		//float sampleL = l[0];
@@ -169,10 +162,10 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples, boo
 		float sr3 = float_buffer[(indexR2 + 1) & INDEX_MASK];
 		float sr4 = float_buffer[(indexR4 + 1) & INDEX_MASK];
 		
-		float ar = sr1 * t1;
-		float br = sr2 * t2;
-		float cr = sr3 * t3;
-		float dr = sr4 * t4;
+		float ar = sr1 * table0[0];
+		float br = sr2 * table0[1];
+		float cr = sr3 * table0[2];
+		float dr = sr4 * table0[3];
 		float sampleR = ar + br + cr + dr;
 		
 
