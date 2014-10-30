@@ -98,9 +98,12 @@ void Jit64::lXXx(UGeckoInstruction inst)
 	if (accessSize == 8 && js.next_inst.OPCD == 31 && js.next_inst.SUBOP10 == 954 &&
 	    js.next_inst.RS == inst.RD && js.next_inst.RA == inst.RD && !js.next_inst.Rc)
 	{
-		js.downcountAmount++;
-		js.skipnext = true;
-		signExtend = true;
+		if (PowerPC::GetState() != PowerPC::CPU_STEPPING)
+		{
+			js.downcountAmount++;
+			js.skipnext = true;
+			signExtend = true;
+		}
 	}
 
 	// TODO(ector): Make it dynamically enable/disable idle skipping where appropriate
@@ -109,6 +112,7 @@ void Jit64::lXXx(UGeckoInstruction inst)
 	// IMHO those Idles should always be skipped and replaced by a more controllable "native" Idle methode
 	// ... maybe the throttle one already do that :p
 	if (SConfig::GetInstance().m_LocalCoreStartupParameter.bSkipIdle &&
+	    PowerPC::GetState() != PowerPC::CPU_STEPPING &&
 	    inst.OPCD == 32 &&
 	    (inst.hex & 0xFFFF0000) == 0x800D0000 &&
 	    (Memory::ReadUnchecked_U32(js.compilerPC + 4) == 0x28000000 ||
@@ -130,7 +134,7 @@ void Jit64::lXXx(UGeckoInstruction inst)
 		TEST(32, gpr.R(d), gpr.R(d));
 		FixupBranch noIdle = J_CC(CC_NZ);
 
-		u32 registersInUse = CallerSavedRegistersInUse();
+		BitSet32 registersInUse = CallerSavedRegistersInUse();
 		ABI_PushRegistersAndAdjustStack(registersInUse, 0);
 
 		ABI_CallFunctionC((void *)&PowerPC::OnIdle, PowerPC::ppcState.gpr[a] + (s32)(s16)inst.SIMM_16);
@@ -242,11 +246,11 @@ void Jit64::lXXx(UGeckoInstruction inst)
 
 	gpr.Lock(a, b, d);
 	gpr.BindToRegister(d, js.memcheck, true);
-	u32 registersInUse = CallerSavedRegistersInUse();
+	BitSet32 registersInUse = CallerSavedRegistersInUse();
 	if (update && storeAddress)
 	{
 		// We need to save the (usually scratch) address register for the update.
-		registersInUse |= (1 << RSCRATCH2);
+		registersInUse[RSCRATCH2] = true;
 	}
 	SafeLoadToReg(gpr.RX(d), opAddress, accessSize, loadOffset, registersInUse, signExtend);
 
@@ -310,7 +314,7 @@ void Jit64::dcbz(UGeckoInstruction inst)
 	SwitchToFarCode();
 	SetJumpTarget(slow);
 	MOV(32, M(&PC), Imm32(jit->js.compilerPC));
-	u32 registersInUse = CallerSavedRegistersInUse();
+	BitSet32 registersInUse = CallerSavedRegistersInUse();
 	ABI_PushRegistersAndAdjustStack(registersInUse, 0);
 	ABI_CallFunctionR((void *)&Memory::ClearCacheLine, RSCRATCH);
 	ABI_PopRegistersAndAdjustStack(registersInUse, 0);
@@ -399,7 +403,7 @@ void Jit64::stX(UGeckoInstruction inst)
 				// Helps external systems know which instruction triggered the write
 				MOV(32, PPCSTATE(pc), Imm32(jit->js.compilerPC));
 
-				u32 registersInUse = CallerSavedRegistersInUse();
+				BitSet32 registersInUse = CallerSavedRegistersInUse();
 				ABI_PushRegistersAndAdjustStack(registersInUse, 0);
 				switch (accessSize)
 				{
@@ -551,7 +555,7 @@ void Jit64::lmw(UGeckoInstruction inst)
 		ADD(32, R(RSCRATCH2), gpr.R(inst.RA));
 	for (int i = inst.RD; i < 32; i++)
 	{
-		SafeLoadToReg(RSCRATCH, R(RSCRATCH2), 32, (i - inst.RD) * 4, CallerSavedRegistersInUse() | (1 << RSCRATCH_EXTRA), false);
+		SafeLoadToReg(RSCRATCH, R(RSCRATCH2), 32, (i - inst.RD) * 4, CallerSavedRegistersInUse() | BitSet32 { RSCRATCH_EXTRA }, false);
 		gpr.BindToRegister(i, false, true);
 		MOV(32, gpr.R(i), R(RSCRATCH));
 	}
