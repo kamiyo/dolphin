@@ -171,7 +171,7 @@ void EmulateSwing(AccelData* const accel
 		(&accel->x)[axis_map[i]] += swing[i] * g_dir[i] * SWING_INTENSITY;
 }
 
-const u16 button_bitmasks[] =
+static const u16 button_bitmasks[] =
 {
 	Wiimote::BUTTON_A,
 	Wiimote::BUTTON_B,
@@ -182,16 +182,16 @@ const u16 button_bitmasks[] =
 	Wiimote::BUTTON_HOME
 };
 
-const u16 dpad_bitmasks[] =
+static const u16 dpad_bitmasks[] =
 {
 	Wiimote::PAD_UP, Wiimote::PAD_DOWN, Wiimote::PAD_LEFT, Wiimote::PAD_RIGHT
 };
-const u16 dpad_sideways_bitmasks[] =
+static const u16 dpad_sideways_bitmasks[] =
 {
 	Wiimote::PAD_RIGHT, Wiimote::PAD_LEFT, Wiimote::PAD_UP, Wiimote::PAD_DOWN
 };
 
-const char* const named_buttons[] =
+static const char* const named_buttons[] =
 {
 	"A", "B", "1", "2", "-", "+", "Home",
 };
@@ -581,7 +581,7 @@ void Wiimote::GetExtData(u8* const data)
 	{
 		switch (m_reg_motion_plus.ext_identifier[0x4])
 		{
-		// nunchuck pass-through mode
+		// nunchuk pass-through mode
 		// Bit 7 of byte 5 is moved to bit 6 of byte 5, overwriting it
 		// Bit 0 of byte 4 is moved to bit 7 of byte 5
 		// Bit 3 of byte 5 is moved to bit 4 of byte 5, overwriting it
