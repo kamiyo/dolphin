@@ -27,18 +27,15 @@
 #define DITHER_WIDTH	1.f / DITHER_WORD
 #define DITHER_SIZE		DITHER_WIDTH / RAND_MAX
 #define DITHER_OFFSET	DITHER_WIDTH * DITHER_SHAPE
-#ifndef M_PI
-#define M_PI  3.14159265358979323846
-#endif
 
 class CMixer {
 
 public:
-	CMixer(unsigned int BackendSampleRate)
+	CMixer(u32 BackendSampleRate)
 		: m_dma_mixer(this, 32000)
 		, m_streaming_mixer(this, 48000)
 		, m_wiimote_speaker_mixer(this, 3000)
-		, m_sampleRate(BackendSampleRate)
+		, m_sample_rate(BackendSampleRate)
 		, m_log_dtk_audio(0)
 		, m_log_dsp_audio(0)
 		, m_speed(0)
@@ -49,18 +46,18 @@ public:
 	virtual ~CMixer() {}
 
 	// Called from audio threads
-	virtual unsigned int Mix(short* samples, unsigned int numSamples, bool consider_framelimit = true);
+	virtual u32 Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
 
 	// Called from main thread
-	virtual void PushSamples(const short* samples, unsigned int num_samples);
-	virtual void PushStreamingSamples(const short* samples, unsigned int num_samples);
-	virtual void PushWiimoteSpeakerSamples(const short* samples, unsigned int num_samples, unsigned int sample_rate);
-	unsigned int GetSampleRate() const { return m_sampleRate; }
+	virtual void PushSamples(const s16* samples, u32 num_samples);
+	virtual void PushStreamingSamples(const s16* samples, u32 num_samples);
+	virtual void PushWiimoteSpeakerSamples(const s16* samples, u32 num_samples, u32 sample_rate);
+	u32 GetSampleRate() const { return m_sample_rate; }
 
-	void SetDMAInputSampleRate(unsigned int rate);
-	void SetStreamInputSampleRate(unsigned int rate);
-	void SetStreamingVolume(unsigned int lvolume, unsigned int rvolume);
-	void SetWiimoteSpeakerVolume(unsigned int lvolume, unsigned int rvolume);
+	void SetDMAInputSampleRate(u32 rate);
+	void SetStreamInputSampleRate(u32 rate);
+	void SetStreamingVolume(u32 lvolume, u32 rvolume);
+	void SetWiimoteSpeakerVolume(u32 lvolume, u32 rvolume);
 
 	virtual void StartLogDTKAudio(const std::string& filename)
 	{
@@ -120,7 +117,7 @@ public:
 		}
 	}
 
-	std::mutex& MixerCritical() { return m_csMixing; }
+	std::mutex& MixerCritical() { return m_cs_mixing; }
 
 	float GetCurrentSpeed() const { return m_speed; }
 	void UpdateSpeed(volatile float val) { m_speed = val; }
@@ -128,53 +125,53 @@ public:
 protected:
 	class MixerFifo {
 	public:
-		MixerFifo(CMixer *mixer, unsigned sample_rate)
+		MixerFifo(CMixer* mixer, u32 sample_rate)
 			: m_mixer(mixer)
 			, m_input_sample_rate(sample_rate)
-			, m_indexW(0)
-			, m_indexR(0)
+			, m_write_index(0)
+			, m_read_index(0)
 			, m_LVolume(256)
 			, m_RVolume(256)
-			, m_numLeftI(0.0f)
-			, m_frac(0)
+			, m_num_left_i(0.0f)
+			, m_fraction(0)
 		{
 			memset(m_buffer, 0, sizeof(m_buffer));
 			srand((u32) time(NULL));
-			memset(float_buffer, 0, sizeof(float_buffer));
+			memset(m_float_buffer, 0, sizeof(m_float_buffer));
 			memset(m_sinc_table, 0, sizeof(m_sinc_table));
-			populate_sinc_table();
+			PopulateSincTable();
 		}
-		void PushSamples(const short* samples, unsigned int num_samples);
-		unsigned int Mix(short* samples, unsigned int numSamples, bool consider_framelimit = true);
-		void SetInputSampleRate(unsigned int rate);
-		void SetVolume(unsigned int lvolume, unsigned int rvolume);
-		void populateFloats(u32 start, u32 stop);
-		float twos2float(u16 s);
-		s16 float2stwos(float f);
+		void PushSamples(const s16* samples, u32 num_samples);
+		u32  Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
+		void SetInputSampleRate(u32 rate);
+		void SetVolume(u32 lvolume, u32 rvolume);
+		void PopulateFloats(u32 start, u32 stop);
+
 	private:
-		float sinc_sinc(float x, float window_width);
-		void populate_sinc_table();
-		CMixer *m_mixer;
-		unsigned m_input_sample_rate;
-		float float_buffer[MAX_SAMPLES * 2];
-		float m_sinc_table[SINC_FSIZE][SINC_SIZE];
-		short m_buffer[MAX_SAMPLES * 2];
-		volatile u32 m_indexW;
-		volatile u32 m_indexR;
-		u32 m_previousW;
+		void     PopulateSincTable();
+		CMixer*  m_mixer;
+		u32      m_input_sample_rate;
+		s16      m_buffer[MAX_SAMPLES * 2];
+		float    m_sinc_table[SINC_FSIZE][SINC_SIZE];
+		float    m_float_buffer[MAX_SAMPLES * 2];
+		
+		volatile u32 m_write_index;
+		volatile u32 m_read_index;
 		// Volume ranges from 0-256
-		volatile s32 m_LVolume;
-		volatile s32 m_RVolume;
-		float m_numLeftI;
-		float m_frac;
-		int m_randL1, m_randL2, m_randR1, m_randR2;
+		volatile u32 m_LVolume;
+		volatile u32 m_RVolume;
+
+		float m_num_left_i;
+		float m_fraction;
+		s32   m_randL1, m_randL2, m_randR1, m_randR2;
 		float m_errorL1, m_errorL2;
 		float m_errorR1, m_errorR2;
 	};
+
 	MixerFifo m_dma_mixer;
 	MixerFifo m_streaming_mixer;
 	MixerFifo m_wiimote_speaker_mixer;
-	unsigned int m_sampleRate;
+	u32 m_sample_rate;
 
 	WaveFileWriter g_wave_writer_dtk;
 	WaveFileWriter g_wave_writer_dsp;
@@ -182,7 +179,7 @@ protected:
 	bool m_log_dtk_audio;
 	bool m_log_dsp_audio;
 
-	std::mutex m_csMixing;
+	std::mutex m_cs_mixing;
 
 	volatile float m_speed; // Current rate of the emulation (1.0 = 100% speed)
 };
