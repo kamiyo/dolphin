@@ -58,6 +58,10 @@ private:
 	ArmGen::FixupBranch JumpIfCRFieldBit(int field, int bit, bool jump_if_set);
 
 	bool BackPatch(SContext* ctx);
+
+	void BeginTimeProfile(JitBlock* b);
+	void EndTimeProfile(JitBlock* b);
+
 public:
 	JitArm() : code_buffer(32000) {}
 	~JitArm() {}
@@ -205,7 +209,6 @@ public:
 	// Floating point loadStore
 	void lfXX(UGeckoInstruction _inst);
 	void stfXX(UGeckoInstruction _inst);
-	void stfs(UGeckoInstruction _inst);
 
 	// Paired Singles
 	void ps_add(UGeckoInstruction _inst);

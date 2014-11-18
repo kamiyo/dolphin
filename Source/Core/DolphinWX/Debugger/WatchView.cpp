@@ -23,8 +23,6 @@
 #include "DolphinWX/Debugger/WatchView.h"
 #include "DolphinWX/Debugger/WatchWindow.h"
 
-class wxWindow;
-
 enum
 {
 	IDM_DELETEWATCH,
@@ -58,7 +56,7 @@ static void UpdateWatchAddr(int count, u32 value)
 	PowerPC::watches.Update(count - 1, value);
 }
 
-static void SetWatchName(int count, const std::string value)
+static void SetWatchName(int count, const std::string& value)
 {
 	if ((count - 1) < (int)PowerPC::watches.GetWatches().size())
 	{
@@ -221,6 +219,9 @@ CWatchView::CWatchView(wxWindow* parent, wxWindowID id)
 	SetRowLabelSize(0);
 	SetColLabelSize(0);
 	DisableDragRowSize();
+
+	Bind(wxEVT_GRID_CELL_RIGHT_CLICK, &CWatchView::OnMouseDownR, this);
+	Bind(wxEVT_MENU, &CWatchView::OnPopupMenu, this);
 }
 
 void CWatchView::Update()
@@ -246,18 +247,18 @@ void CWatchView::OnMouseDownR(wxGridEvent& event)
 		TryParse("0x" + WxStrToStr(strNewVal), &m_selectedAddress);
 	}
 
-	wxMenu* menu = new wxMenu;
+	wxMenu menu;
 	if (row != 0 && row != (int)(PowerPC::watches.GetWatches().size() + 1))
-		menu->Append(IDM_DELETEWATCH, _("&Delete watch"));
+		menu.Append(IDM_DELETEWATCH, _("&Delete watch"));
 
 	if (row != 0 && row != (int)(PowerPC::watches.GetWatches().size() + 1) && (col == 1 || col == 2))
 	{
 #ifdef ENABLE_MEM_CHECK
-		menu->Append(IDM_ADDMEMCHECK, _("Add memory &breakpoint"));
+		menu.Append(IDM_ADDMEMCHECK, _("Add memory &breakpoint"));
 #endif
-		menu->Append(IDM_VIEWMEMORY, _("View &memory"));
+		menu.Append(IDM_VIEWMEMORY, _("View &memory"));
 	}
-	PopupMenu(menu);
+	PopupMenu(&menu);
 }
 
 void CWatchView::OnPopupMenu(wxCommandEvent& event)

@@ -25,8 +25,6 @@
 #include "DolphinWX/Debugger/RegisterView.h"
 #include "DolphinWX/Debugger/WatchWindow.h"
 
-class wxWindow;
-
 // F-zero 80005e60 wtf??
 
 enum
@@ -255,6 +253,9 @@ CRegisterView::CRegisterView(wxWindow *parent, wxWindowID id)
 	SetColLabelSize(0);
 	DisableDragRowSize();
 
+	Bind(wxEVT_GRID_CELL_RIGHT_CLICK, &CRegisterView::OnMouseDownR, this);
+	Bind(wxEVT_MENU, &CRegisterView::OnPopupMenu, this);
+
 	AutoSizeColumns();
 }
 
@@ -273,10 +274,10 @@ void CRegisterView::OnMouseDownR(wxGridEvent& event)
 	wxString strNewVal = GetValueByRowCol(row, col);
 	TryParse("0x" + WxStrToStr(strNewVal), &m_selectedAddress);
 
-	wxMenu* menu = new wxMenu;
-	menu->Append(IDM_WATCHADDRESS, _("Add to &watch"));
-	menu->Append(IDM_VIEWMEMORY, _("View &memory"));
-	PopupMenu(menu);
+	wxMenu menu;
+	menu.Append(IDM_WATCHADDRESS, _("Add to &watch"));
+	menu.Append(IDM_VIEWMEMORY, _("View &memory"));
+	PopupMenu(&menu);
 }
 
 void CRegisterView::OnPopupMenu(wxCommandEvent& event)
