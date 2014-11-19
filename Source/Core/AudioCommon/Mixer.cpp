@@ -15,19 +15,20 @@
 // UGLINESS
 #include "Core/PowerPC/PowerPC.h"
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #if _M_SSE >= 0x301 && !(defined __GNUC__ && !defined __SSSE3__)
 #include <tmmintrin.h>
 #endif
 
-#define _USE_MATH_DEFINES
-#include <math.h>
-
-
+// converts [-32768, 32767] -> [-1, 1]
 inline float Signed16ToFloat(s16 s)
 {
 	return (s > 0) ? (float) (s / (float) 0x7fff) : (float) (s / (float) 0x8000);
 }
 
+// converts [-1, 1] -> [-32768, 32767]
 inline s16 FloatToSigned16(float f)
 {
 	return (f > 0) ? (s16) (f * 0x7fff) : (s16) (f * 0x8000);
@@ -35,7 +36,7 @@ inline s16 FloatToSigned16(float f)
 
 inline float SincSinc(float x, float window_width)
 {
-	float pi_x = M_PI * x;
+	float pi_x = (float) M_PI * x;
 	return (float) (window_width * sin(pi_x) * sin(pi_x / window_width) / (pi_x * pi_x));
 }
 
@@ -72,24 +73,21 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 	u32 current_sample = 0;
 
 	// Cache access in non-volatile variable
-	// This is the only function changing the read value, so it's safe to
-	// cache it locally although it's written here.
-	// The writing pointer will be modified outside, but it will only increase,
-	// so we will just ignore new written data while interpolating.
 	// Without this cache, the compiler wouldn't be allowed to optimize the
 	// interpolation loop.
-	u32 read_index = Common::AtomicLoad(m_read_index);
-	u32 write_index = Common::AtomicLoad(m_write_index);
+	u32 r_index = Common::AtomicLoad(m_r_index);
+	u32 w_index = Common::AtomicLoad(m_w_index);
 
-	float num_left = (float) (((write_index - read_index) & INDEX_MASK) / 2);
+	// MAGIC
+	float num_left = (float) (((w_index - r_index) & INDEX_MASK) / 2);
 	m_num_left_i = (num_left + m_num_left_i*(CONTROL_AVG - 1)) / CONTROL_AVG;
 	float offset = (m_num_left_i - LOW_WATERMARK) * CONTROL_FACTOR;
 	if (offset > MAX_FREQ_SHIFT) offset = MAX_FREQ_SHIFT;
 	if (offset < -MAX_FREQ_SHIFT) offset = -MAX_FREQ_SHIFT;
 
-	//render numleft sample pairs to samples[]
-	//advance indexR with sample position
-	//remember fractional offset
+	// render numleft sample pairs to samples[]
+	// advance indexR with sample position
+	// remember fractional offset
 
 	u32 framelimit = SConfig::GetInstance().m_Framelimit;
 	float aid_sample_rate = m_input_sample_rate + offset;
@@ -100,97 +98,84 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 
 	float ratio = aid_sample_rate / (float) m_mixer->m_sample_rate;
 
-	float lvolume = (float) m_LVolume / 256.f;
-	float rvolume = (float) m_RVolume / 256.f;
-	s32 lIvolume = m_LVolume;
-	s32 rIvolume = m_RVolume;
+	float l_volume = (float) m_l_volume / 256.f;
+	float r_volume = (float) m_r_volume / 256.f;
 
-	m_errorL1 = 0, m_errorL2 = 0;
-	m_errorR1 = 0, m_errorR2 = 0;
-	m_randR1 = 0, m_randR2 = 0, m_randR1 = 0, m_randR2 = 0;
-	float templ, tempr;
+	// dither accumulators
+	s32   l_rand1 = 0, l_rand2;
+	s32   r_rand1 = 0, r_rand2;
+	float l_error1 = 0, l_error2 = 0;
+	float r_error1 = 0, r_error2 = 0;
 
-	for (; current_sample < numSamples * 2 && ((write_index - read_index) & INDEX_MASK) > 2; current_sample += 2) {
-		// get sinc table with *closest* desired offset
+	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2) {
+		// get sinc table with floor(closest) desired offset
+
 		s32 index = (s32) (m_fraction * SINC_FSIZE);
-		const float* table0 = m_sinc_table[index];
+		const float* weights = m_sinc_table[index];
 
-		u32 read_index_previous = read_index - 2;   // sample -1
-		                                            // sample  0 (read_index)
-		u32 read_index_next = read_index + 2;       // sample  1
-		u32 read_index_nextnext = read_index + 4;   // sample  2
+		// interpolate
+		std::vector<float> l_samples(SINC_SIZE);
+		std::vector<float> r_samples(SINC_SIZE);
+		for (u32 i = 0; i < SINC_SIZE; ++i)
+		{
+			u32 current_index = r_index + (2 * i) - (SINC_SIZE / 2);
+			l_samples[i] = m_float_buffer[current_index       & INDEX_MASK] * weights[i];
+			r_samples[i] = m_float_buffer[(current_index + 1) & INDEX_MASK] * weights[i];
+		}
 
-		// LEFT CHANNEL
-		float sl1 = m_float_buffer[(read_index_previous) & INDEX_MASK];
-		float sl2 = m_float_buffer[(read_index)          & INDEX_MASK];
-		float sl3 = m_float_buffer[(read_index_next)     & INDEX_MASK];
-		float sl4 = m_float_buffer[(read_index_nextnext) & INDEX_MASK];
+		float l_output = 0;
+		float r_output = 0;
+		for (u32 i = 0; i < SINC_SIZE; ++i)
+		{
+			l_output += l_samples[i];
+			r_output += r_samples[i];
+		}
 		
-		float al = sl1 * table0[0];
-		float bl = sl2 * table0[1];
-		float cl = sl3 * table0[2];
-		float dl = sl4 * table0[3];
-		float sampleL = al + bl + cl + dl;
-		
-		//float sampleL = l[0];
-		sampleL = sampleL * lvolume;
-		sampleL += Signed16ToFloat(samples[current_sample + 1]);
+		l_output = l_output * l_volume;
+		l_output += Signed16ToFloat(samples[current_sample + 1]);
+
+		r_output = r_output * r_volume;
+		r_output += Signed16ToFloat(samples[current_sample]);
 
 		// dither
-		m_randL2 = m_randL1;
-		m_randL1 = rand();
-		templ = sampleL + DITHER_SHAPE * (m_errorL1 + m_errorL1 - m_errorL2);
-		sampleL = templ + DITHER_OFFSET + DITHER_SIZE * (float) (m_randL1 - m_randL2);
+		l_rand2 = l_rand1;
+		l_rand1 = rand();
+		float l_shape = l_output + DITHER_SHAPE * (l_error1 + l_error1 - l_error2);
+		l_output = l_shape + DITHER_OFFSET + DITHER_SIZE * (float) (l_rand1 - l_rand2);
 
-		// clamp and output
-		MathUtil::Clamp(&sampleL, -1.f, 1.f);
-		int sampleLi = FloatToSigned16(sampleL);
-		samples[current_sample + 1] = sampleLi;
+		r_rand2 = r_rand1;
+		r_rand1 = rand();
+		float r_shape = r_output + DITHER_SHAPE * (r_error1 + r_error1 - r_error2);
+		r_output = r_shape + DITHER_OFFSET + DITHER_SIZE * (float) (r_rand1 - r_rand2);
 
 		// update dither accumulators
-		m_errorL2 = m_errorL1;
-		m_errorL1 = templ - sampleL;
+		l_error2 = l_error1;
+		l_error1 = l_shape - l_output;
 
-		// RIGHT CHANNEL
-		float sr1 = m_float_buffer[(read_index_previous + 1) & INDEX_MASK];
-		float sr2 = m_float_buffer[(read_index          + 1) & INDEX_MASK];
-		float sr3 = m_float_buffer[(read_index_next     + 1) & INDEX_MASK];
-		float sr4 = m_float_buffer[(read_index_nextnext + 1) & INDEX_MASK];
-		
-		float ar = sr1 * table0[0];
-		float br = sr2 * table0[1];
-		float cr = sr3 * table0[2];
-		float dr = sr4 * table0[3];
-		float sampleR = ar + br + cr + dr;
-		
+		r_error2 = r_error1;
+		r_error1 = r_shape - r_output;
 
-		//float sampleR = r[0];
-		sampleR = sampleR * rvolume;
-		sampleR += Signed16ToFloat(samples[current_sample]);
+		// clamp and output
+		MathUtil::Clamp(&l_output, -1.f, 1.f);
+		samples[current_sample + 1] = FloatToSigned16(l_output);
 
-		m_randR2 = m_randR1;
-		m_randR1 = rand();
-		tempr = sampleR + DITHER_SHAPE * (m_errorR1 + m_errorR1 - m_errorR2);
-		sampleR = tempr + DITHER_OFFSET + DITHER_SIZE * (float) (m_randR1 - m_randR2);
-
-		MathUtil::Clamp(&sampleR, -1.f, 1.f);
-		int sampleRi = FloatToSigned16(sampleR);
+		MathUtil::Clamp(&r_output, -1.f, 1.f);
+		int sampleRi = FloatToSigned16(r_output);
 		samples[current_sample] = sampleRi;
 
-		m_errorR2 = m_errorR1;
-		m_errorR1 = tempr - sampleR;
+		
 
 		m_fraction += ratio;
-		read_index += 2 * (int) m_fraction;
+		r_index += 2 * (int) m_fraction;
 		m_fraction = m_fraction - (int) m_fraction;
 	}
 
 	// Padding
 	s16 s[2];
-	s[0] = Common::swap16(m_buffer[(read_index - 1) & INDEX_MASK]);
-	s[1] = Common::swap16(m_buffer[(read_index - 2) & INDEX_MASK]);
-	s[0] = (s[0] * rIvolume) >> 8;
-	s[1] = (s[1] * lIvolume) >> 8;
+	s[0] = Common::swap16(m_buffer[(r_index - 1) & INDEX_MASK]);
+	s[1] = Common::swap16(m_buffer[(r_index - 2) & INDEX_MASK]);
+	s[0] = (s[0] * m_r_volume) >> 8;
+	s[1] = (s[1] * m_l_volume) >> 8;
 	for (; current_sample < numSamples * 2; current_sample += 2)
 	{
 		int sampleR = s[0] + samples[current_sample];
@@ -202,7 +187,7 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 	}
 
 	// Flush cached variable
-	Common::AtomicStore(m_read_index, read_index);
+	Common::AtomicStore(m_r_index, r_index);
 
 	return numSamples;
 }
@@ -233,32 +218,32 @@ void CMixer::MixerFifo::PushSamples(const s16 *samples, u32 num_samples)
 	// Cache access in non-volatile variable
 	// indexR isn't allowed to cache in the audio throttling loop as it
 	// needs to get updates to not deadlock.
-	u32 current_write_index = Common::AtomicLoad(m_write_index);
-	u32 previous_index_write = current_write_index;
+	u32 current_w_index = Common::AtomicLoad(m_w_index);
+	u32 previous_w_index = current_w_index;
 
 	// Check if we have enough free space
 	// indexW == m_indexR results in empty buffer, so indexR must always be smaller than indexW
-	if (num_samples * 2 + ((current_write_index - Common::AtomicLoad(m_read_index)) & INDEX_MASK) >= MAX_SAMPLES * 2)
+	if (num_samples * 2 + ((current_w_index - Common::AtomicLoad(m_r_index)) & INDEX_MASK) >= MAX_SAMPLES * 2)
 		return;
 
 	// AyuanX: Actual re-sampling work has been moved to sound thread
 	// to alleviate the workload on main thread
 	// and we simply store raw data here to make fast mem copy
-	int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (current_write_index & INDEX_MASK)) * sizeof(s16);
+	int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (current_w_index & INDEX_MASK)) * sizeof(s16);
 	if (over_bytes > 0)
 	{
-		memcpy(&m_buffer[current_write_index & INDEX_MASK], samples, num_samples * 4 - over_bytes);
+		memcpy(&m_buffer[current_w_index & INDEX_MASK], samples, num_samples * 4 - over_bytes);
 		memcpy(&m_buffer[0], samples + (num_samples * 4 - over_bytes) / sizeof(s16), over_bytes);
 	}
 	else
 	{
-		memcpy(&m_buffer[current_write_index & INDEX_MASK], samples, num_samples * 4);
+		memcpy(&m_buffer[current_w_index & INDEX_MASK], samples, num_samples * 4);
 	}
 
-	Common::AtomicAdd(m_write_index, num_samples * 2);
+	Common::AtomicAdd(m_w_index, num_samples * 2);
 
-	current_write_index = Common::AtomicLoad(m_write_index);
-	PopulateFloats(previous_index_write, current_write_index);
+	current_w_index = Common::AtomicLoad(m_w_index);
+	PopulateFloats(previous_w_index, current_w_index);
 
 	return;
 }
@@ -322,6 +307,6 @@ void CMixer::MixerFifo::SetInputSampleRate(u32 rate)
 
 void CMixer::MixerFifo::SetVolume(u32 lvolume, u32 rvolume)
 {
-	m_LVolume = lvolume + (lvolume >> 7);
-	m_RVolume = rvolume + (rvolume >> 7);
+	m_l_volume = lvolume + (lvolume >> 7);
+	m_r_volume = rvolume + (rvolume >> 7);
 }

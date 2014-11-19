@@ -128,10 +128,10 @@ protected:
 		MixerFifo(CMixer* mixer, u32 sample_rate)
 			: m_mixer(mixer)
 			, m_input_sample_rate(sample_rate)
-			, m_write_index(0)
-			, m_read_index(0)
-			, m_LVolume(256)
-			, m_RVolume(256)
+			, m_w_index(0)
+			, m_r_index(0)
+			, m_l_volume(256)
+			, m_r_volume(256)
 			, m_num_left_i(0.0f)
 			, m_fraction(0)
 		{
@@ -155,17 +155,15 @@ protected:
 		float    m_sinc_table[SINC_FSIZE][SINC_SIZE];
 		float    m_float_buffer[MAX_SAMPLES * 2];
 		
-		volatile u32 m_write_index;
-		volatile u32 m_read_index;
-		// Volume ranges from 0-256
-		volatile u32 m_LVolume;
-		volatile u32 m_RVolume;
+		volatile u32 m_w_index;
+		volatile u32 m_r_index;
+		float    m_num_left_i;
+		float    m_fraction;
 
-		float m_num_left_i;
-		float m_fraction;
-		s32   m_randL1, m_randL2, m_randR1, m_randR2;
-		float m_errorL1, m_errorL2;
-		float m_errorR1, m_errorR2;
+		// Volume ranges from 0-256
+		volatile u32 m_r_volume;
+		volatile u32 m_l_volume;
+
 	};
 
 	MixerFifo m_dma_mixer;
