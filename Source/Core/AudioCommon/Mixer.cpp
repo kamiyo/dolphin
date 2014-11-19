@@ -111,7 +111,7 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 		// get sinc table with floor(closest) desired offset
 
 		s32 index = (s32) (m_fraction * SINC_FSIZE);
-		const float* weights = m_sinc_table[index];
+		const std::vector<float> weights = m_sinc_table[index];
 
 		// interpolate
 		std::vector<float> l_samples(SINC_SIZE);
@@ -160,10 +160,7 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 		samples[current_sample + 1] = FloatToSigned16(l_output);
 
 		MathUtil::Clamp(&r_output, -1.f, 1.f);
-		int sampleRi = FloatToSigned16(r_output);
-		samples[current_sample] = sampleRi;
-
-		
+		samples[current_sample] = FloatToSigned16(r_output);
 
 		m_fraction += ratio;
 		r_index += 2 * (int) m_fraction;
@@ -178,12 +175,12 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 	s[1] = (s[1] * m_l_volume) >> 8;
 	for (; current_sample < numSamples * 2; current_sample += 2)
 	{
-		int sampleR = s[0] + samples[current_sample];
-		MathUtil::Clamp(&sampleR, -32768, 32767);
-		samples[current_sample] = sampleR;
-		int sampleL = s[1] + samples[current_sample + 1];
-		MathUtil::Clamp(&sampleL, -32768, 32767);
-		samples[current_sample + 1] = sampleL;
+		int r_output = s[0] + samples[current_sample];
+		MathUtil::Clamp(&r_output, -32768, 32767);
+		samples[current_sample] = r_output;
+		int l_output = s[1] + samples[current_sample + 1];
+		MathUtil::Clamp(&l_output, -32768, 32767);
+		samples[current_sample + 1] = l_output;
 	}
 
 	// Flush cached variable

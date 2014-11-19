@@ -18,15 +18,16 @@
 #define CONTROL_FACTOR  0.2f // in freq_shift per fifo size offset
 #define CONTROL_AVG     32
 
+// Lanczos table
 #define SINC_FSIZE		65536	// sinc table granularity = 1 / SINC_FSIZE.
 #define SINC_SIZE		(5 - 1) // see comment for populate_sinc_table()
-#define DPPS_MASK		0xF1	   // tells DPPS to apply to all inputs, and store in 1st index
+
 // Dither defines
 #define DITHER_SHAPE	0.5f
 #define DITHER_WORD		(0xFFFF)
-#define DITHER_WIDTH	1.f / DITHER_WORD
-#define DITHER_SIZE		DITHER_WIDTH / RAND_MAX
-#define DITHER_OFFSET	DITHER_WIDTH * DITHER_SHAPE
+#define DITHER_WIDTH	(1.f / DITHER_WORD)
+#define DITHER_SIZE		(DITHER_WIDTH / RAND_MAX)
+#define DITHER_OFFSET	(DITHER_WIDTH * DITHER_SHAPE)
 
 class CMixer {
 
@@ -135,10 +136,10 @@ protected:
 			, m_num_left_i(0.0f)
 			, m_fraction(0)
 		{
-			memset(m_buffer, 0, sizeof(m_buffer));
 			srand((u32) time(NULL));
-			memset(m_float_buffer, 0, sizeof(m_float_buffer));
-			memset(m_sinc_table, 0, sizeof(m_sinc_table));
+			m_buffer.resize(MAX_SAMPLES * 2, 0);
+			m_sinc_table.resize(SINC_FSIZE, std::vector<float>(SINC_SIZE, 0));
+			m_float_buffer.resize(MAX_SAMPLES * 2, 0);
 			PopulateSincTable();
 		}
 		void PushSamples(const s16* samples, u32 num_samples);
@@ -151,9 +152,9 @@ protected:
 		void     PopulateSincTable();
 		CMixer*  m_mixer;
 		u32      m_input_sample_rate;
-		s16      m_buffer[MAX_SAMPLES * 2];
-		float    m_sinc_table[SINC_FSIZE][SINC_SIZE];
-		float    m_float_buffer[MAX_SAMPLES * 2];
+		std::vector<s16>                 m_buffer;       // [MAX_SAMPLES * 2];
+		std::vector<std::vector<float> > m_sinc_table;   // [SINC_FSIZE][SINC_SIZE];
+		std::vector<float>               m_float_buffer; // [MAX_SAMPLES * 2];
 		
 		volatile u32 m_w_index;
 		volatile u32 m_r_index;
