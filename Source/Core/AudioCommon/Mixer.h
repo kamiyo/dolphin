@@ -20,7 +20,7 @@
 
 // Lanczos table
 #define SINC_FSIZE		65536	// sinc table granularity = 1 / SINC_FSIZE.
-#define SINC_SIZE		(5 - 1) // see comment for populate_sinc_table()
+#define SINC_SIZE		(7 - 1) // see comment for populate_sinc_table()
 
 // Dither defines
 #define DITHER_SHAPE	0.5f
@@ -28,6 +28,10 @@
 #define DITHER_WIDTH	(1.f / DITHER_WORD)
 #define DITHER_SIZE		(DITHER_WIDTH / RAND_MAX)
 #define DITHER_OFFSET	(DITHER_WIDTH * DITHER_SHAPE)
+
+// Logarithmic compression
+#define COMPRESS_THRESH 0.8f
+#define COMPRESS_ALPHA  17.5098
 
 class CMixer {
 
@@ -40,14 +44,21 @@ public:
 		, m_log_dtk_audio(0)
 		, m_log_dsp_audio(0)
 		, m_speed(0)
+		, l_rand1(0), l_rand2(0)
+		, r_rand1(0), r_rand2(0)
+		, l_error1(0), l_error2(0)
+		, r_error1(0), r_error2(0)
 	{
 		INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
+		m_output_buffer.reserve(MAX_SAMPLES * 2);
+		m_sinc_table.resize(SINC_FSIZE, std::vector<float>(SINC_SIZE, 0));
+		PopulateSincTable();
 	}
 
 	virtual ~CMixer() {}
 
 	// Called from audio threads
-	virtual u32 Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
+	u32 Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
 
 	// Called from main thread
 	virtual void PushSamples(const s16* samples, u32 num_samples);
@@ -122,6 +133,7 @@ public:
 
 	float GetCurrentSpeed() const { return m_speed; }
 	void UpdateSpeed(volatile float val) { m_speed = val; }
+	void PopulateSincTable();
 
 protected:
 	class MixerFifo {
@@ -131,42 +143,42 @@ protected:
 			, m_input_sample_rate(sample_rate)
 			, m_w_index(0)
 			, m_r_index(0)
-			, m_l_volume(256)
-			, m_r_volume(256)
+			, m_lvolume(255)
+			, m_rvolume(255)
 			, m_num_left_i(0.0f)
-			, m_fraction(0)
+			, m_fraction(0.0f)
 		{
 			srand((u32) time(NULL));
-			m_buffer.resize(MAX_SAMPLES * 2, 0);
-			m_sinc_table.resize(SINC_FSIZE, std::vector<float>(SINC_SIZE, 0));
+			//m_buffer.resize(MAX_SAMPLES * 2, 0);
 			m_float_buffer.resize(MAX_SAMPLES * 2, 0);
-			PopulateSincTable();
 		}
 		void PushSamples(const s16* samples, u32 num_samples);
-		u32  Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
+		void Mix(std::vector<float>& samples, u32 numSamples, bool consider_framelimit = true);
+		void MixLinear(std::vector<float>& samples, u32 numSamples, bool consider_framelimit);
 		void SetInputSampleRate(u32 rate);
 		void SetVolume(u32 lvolume, u32 rvolume);
-		void PopulateFloats(u32 start, u32 stop);
+		void GetVolume(u32* lvolume, u32* rvolume) const;
+		//void PopulateFloats(u32 start, u32 stop);
 
 	private:
-		void     PopulateSincTable();
 		CMixer*  m_mixer;
 		u32      m_input_sample_rate;
-		std::vector<s16>                 m_buffer;       // [MAX_SAMPLES * 2];
-		std::vector<std::vector<float> > m_sinc_table;   // [SINC_FSIZE][SINC_SIZE];
+		//std::vector<s16>                 m_buffer;       // [MAX_SAMPLES * 2];
 		std::vector<float>               m_float_buffer; // [MAX_SAMPLES * 2];
-		
+
 		volatile u32 m_w_index;
 		volatile u32 m_r_index;
 		float    m_num_left_i;
 		float    m_fraction;
 
-		// Volume ranges from 0-256
-		volatile u32 m_r_volume;
-		volatile u32 m_l_volume;
+		// Volume ranges from 0-255
+		volatile u32 m_rvolume;
+		volatile u32 m_lvolume;
 
 	};
 
+	std::vector<std::vector<float> > m_sinc_table;   // [SINC_FSIZE][SINC_SIZE];
+	
 	MixerFifo m_dma_mixer;
 	MixerFifo m_streaming_mixer;
 	MixerFifo m_wiimote_speaker_mixer;
@@ -181,4 +193,12 @@ protected:
 	std::mutex m_cs_mixing;
 
 	volatile float m_speed; // Current rate of the emulation (1.0 = 100% speed)
+
+private:
+	std::vector<float> m_output_buffer;
+	// dither accumulators
+	s32   l_rand1, l_rand2;
+	s32   r_rand1, r_rand2;
+	float l_error1, l_error2;
+	float r_error1, r_error2;
 };

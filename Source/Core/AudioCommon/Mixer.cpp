@@ -40,15 +40,15 @@ inline float SincSinc(float x, float window_width)
 	return (float) (window_width * sin(pi_x) * sin(pi_x / window_width) / (pi_x * pi_x));
 }
 
-void CMixer::MixerFifo::PopulateFloats(u32 start, u32 stop)
-{
-	for (u32 i = start; i < stop; ++i)
-	{
-		m_float_buffer[i & INDEX_MASK] = Signed16ToFloat(Common::swap16(m_buffer[i & INDEX_MASK]));
-	}
-}
+//void CMixer::MixerFifo::PopulateFloats(u32 start, u32 stop)
+//{
+//	for (u32 i = start; i < stop; ++i)
+//	{
+//		m_float_buffer[i & INDEX_MASK] = Signed16ToFloat(Common::swap16(m_buffer[i & INDEX_MASK]));
+//	}
+//}
 
-void CMixer::MixerFifo::PopulateSincTable() {
+void CMixer::PopulateSincTable() {
 	float table_center = SINC_SIZE / 2;
 	for (int i = 0; i < SINC_FSIZE; ++i)
 	{
@@ -67,8 +67,8 @@ void CMixer::MixerFifo::PopulateSincTable() {
 		}
 	}
 }
-// Executed from sound stream thread
-u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimit)
+
+void CMixer::MixerFifo::MixLinear(std::vector<float>& samples, u32 numSamples, bool consider_framelimit)
 {
 	u32 current_sample = 0;
 
@@ -78,7 +78,6 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 	u32 r_index = Common::AtomicLoad(m_r_index);
 	u32 w_index = Common::AtomicLoad(m_w_index);
 
-	// MAGIC
 	float num_left = (float) (((w_index - r_index) & INDEX_MASK) / 2);
 	m_num_left_i = (num_left + m_num_left_i*(CONTROL_AVG - 1)) / CONTROL_AVG;
 	float offset = (m_num_left_i - LOW_WATERMARK) * CONTROL_FACTOR;
@@ -98,20 +97,68 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 
 	float ratio = aid_sample_rate / (float) m_mixer->m_sample_rate;
 
-	float l_volume = (float) m_l_volume / 256.f;
-	float r_volume = (float) m_r_volume / 256.f;
+	float l_volume = (float) m_lvolume / 255.f;
+	float r_volume = (float) m_rvolume / 255.f;
 
-	// dither accumulators
-	s32   l_rand1 = 0, l_rand2;
-	s32   r_rand1 = 0, r_rand2;
-	float l_error1 = 0, l_error2 = 0;
-	float r_error1 = 0, r_error2 = 0;
+	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2)
+	{
+		samples[current_sample + 1] += l_volume * (m_float_buffer[r_index & INDEX_MASK] + (m_float_buffer[(r_index + 2) & INDEX_MASK] - m_float_buffer[r_index & INDEX_MASK]) * m_fraction);
+		samples[current_sample] += r_volume * (m_float_buffer[(r_index + 1) & INDEX_MASK] + (m_float_buffer[(r_index + 3) & INDEX_MASK] - m_float_buffer[(r_index + 1) & INDEX_MASK]) * m_fraction);
+	
+		m_fraction += ratio;
+		r_index += 2 * (int) m_fraction;
+		m_fraction = m_fraction - (int) m_fraction;
+	}
 
-	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2) {
+	float s[2];
+	s[0] = m_float_buffer[(r_index - 1) & INDEX_MASK] * r_volume;
+	s[1] = m_float_buffer[(r_index - 2) & INDEX_MASK] * l_volume;
+	for (; current_sample < numSamples * 2; current_sample += 2)
+	{
+		samples[current_sample] += s[0];
+		samples[current_sample + 1] += s[1];
+	}
+	Common::AtomicStore(m_r_index, r_index);
+
+}
+// Executed from sound stream thread
+void CMixer::MixerFifo::Mix(std::vector<float>& samples, u32 numSamples, bool consider_framelimit)
+{
+	u32 current_sample = 0;
+
+	// Cache access in non-volatile variable
+	// Without this cache, the compiler wouldn't be allowed to optimize the
+	// interpolation loop.
+	u32 r_index = Common::AtomicLoad(m_r_index);
+	u32 w_index = Common::AtomicLoad(m_w_index);
+
+	float num_left = (float) (((w_index - r_index) & INDEX_MASK) / 2);
+	m_num_left_i = (num_left + m_num_left_i*(CONTROL_AVG - 1)) / CONTROL_AVG;
+	float offset = (m_num_left_i - LOW_WATERMARK) * CONTROL_FACTOR;
+	if (offset > MAX_FREQ_SHIFT) offset = MAX_FREQ_SHIFT;
+	if (offset < -MAX_FREQ_SHIFT) offset = -MAX_FREQ_SHIFT;
+
+	// render numleft sample pairs to samples[]
+	// advance indexR with sample position
+	// remember fractional offset
+
+	u32 framelimit = SConfig::GetInstance().m_Framelimit;
+	float aid_sample_rate = m_input_sample_rate + offset;
+	if (consider_framelimit && framelimit > 1)
+	{
+		aid_sample_rate = aid_sample_rate * (framelimit - 1) * 5 / VideoInterface::TargetRefreshRate;
+	}
+
+	float ratio = aid_sample_rate / (float) m_mixer->m_sample_rate;
+
+	float l_volume = (float) m_lvolume / 255.f;
+	float r_volume = (float) m_rvolume / 255.f;
+	
+	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2)
+	{
 		// get sinc table with floor(closest) desired offset
-
 		s32 index = (s32) (m_fraction * SINC_FSIZE);
-		const std::vector<float> weights = m_sinc_table[index];
+		const std::vector<float>& weights = m_mixer->m_sinc_table[index];
 
 		// interpolate
 		std::vector<float> l_samples(SINC_SIZE);
@@ -132,12 +179,75 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 		}
 		
 		l_output = l_output * l_volume;
-		l_output += Signed16ToFloat(samples[current_sample + 1]);
+		samples[current_sample + 1] += l_output;
 
 		r_output = r_output * r_volume;
-		r_output += Signed16ToFloat(samples[current_sample]);
+		samples[current_sample] += r_output;
 
+		m_fraction += ratio;
+		r_index += 2 * (int) m_fraction;
+		m_fraction = m_fraction - (int) m_fraction;
+	}
+	
+	float s[2];
+	s[0] = m_float_buffer[(r_index - 1) & INDEX_MASK] * r_volume;
+	s[1] = m_float_buffer[(r_index - 2) & INDEX_MASK] * l_volume;
+	for (; current_sample < numSamples * 2; current_sample += 2)
+	{
+		samples[current_sample    ] += s[0];
+		samples[current_sample + 1] += s[1];
+	}
+
+	// Flush cached variable
+	Common::AtomicStore(m_r_index, r_index);
+
+}
+
+u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
+{
+	if (!samples)
+		return 0;
+
+	std::lock_guard<std::mutex> lk(m_cs_mixing);
+
+	if (PowerPC::GetState() != PowerPC::CPU_RUNNING)
+	{
+		// Silence
+		memset(samples, 0, num_samples * 2 * sizeof(s16));
+		return num_samples;
+	}
+
+	m_output_buffer.resize(num_samples * 2);
+	std::fill_n(m_output_buffer.begin(), num_samples * 2, 0.f);
+	
+	//m_dma_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
+	//m_streaming_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
+
+	// adding wiimote speaker runs risk of distortion (getting |values| > 1)
+	// we trust |dma + streaming| < 1.
+	// use logarithmic compression for now
+	u32 wiimote_lvolume = 0, wiimote_rvolume = 0;
+	m_wiimote_speaker_mixer.GetVolume(&wiimote_lvolume, &wiimote_rvolume);
+	if (wiimote_lvolume && wiimote_rvolume)
+	{
+		float highest_volume = std::max((float) wiimote_lvolume / 255, (float) wiimote_rvolume / 255);
+		m_wiimote_speaker_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
+		for (float sample : m_output_buffer)
+		{
+			if (abs(sample) > COMPRESS_THRESH)
+			{
+				float compress = (float) log(1 + COMPRESS_ALPHA * (abs(sample) - COMPRESS_THRESH) / (1 + highest_volume - COMPRESS_THRESH));
+				compress /= (float) log(1 + COMPRESS_ALPHA);
+				sample = sample / abs(sample) * (COMPRESS_THRESH + (1 - COMPRESS_THRESH) * compress);
+			}
+		}
+	}
+
+	for (u32 i = 0; i < num_samples * 2; i += 2) {
 		// dither
+		float l_output = m_output_buffer[i + 1];
+		float r_output = m_output_buffer[i];
+
 		l_rand2 = l_rand1;
 		l_rand1 = rand();
 		float l_shape = l_output + DITHER_SHAPE * (l_error1 + l_error1 - l_error2);
@@ -157,61 +267,19 @@ u32 CMixer::MixerFifo::Mix(s16* samples, u32 numSamples, bool consider_framelimi
 
 		// clamp and output
 		MathUtil::Clamp(&l_output, -1.f, 1.f);
-		samples[current_sample + 1] = FloatToSigned16(l_output);
-
+		samples[i + 1] = FloatToSigned16(l_output);
+		
 		MathUtil::Clamp(&r_output, -1.f, 1.f);
-		samples[current_sample] = FloatToSigned16(r_output);
-
-		m_fraction += ratio;
-		r_index += 2 * (int) m_fraction;
-		m_fraction = m_fraction - (int) m_fraction;
+		samples[i] = FloatToSigned16(r_output);
+		INFO_LOG(DSPHLE, "%d ", samples[i]);
+		INFO_LOG(DSPHLE, "%d ", samples[i + 1]);
 	}
 
-	// Padding
-	s16 s[2];
-	s[0] = Common::swap16(m_buffer[(r_index - 1) & INDEX_MASK]);
-	s[1] = Common::swap16(m_buffer[(r_index - 2) & INDEX_MASK]);
-	s[0] = (s[0] * m_r_volume) >> 8;
-	s[1] = (s[1] * m_l_volume) >> 8;
-	for (; current_sample < numSamples * 2; current_sample += 2)
-	{
-		int r_output = s[0] + samples[current_sample];
-		MathUtil::Clamp(&r_output, -32768, 32767);
-		samples[current_sample] = r_output;
-		int l_output = s[1] + samples[current_sample + 1];
-		MathUtil::Clamp(&l_output, -32768, 32767);
-		samples[current_sample + 1] = l_output;
-	}
-
-	// Flush cached variable
-	Common::AtomicStore(m_r_index, r_index);
-
-	return numSamples;
-}
-
-u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
-{
-	if (!samples)
-		return 0;
-
-	std::lock_guard<std::mutex> lk(m_cs_mixing);
-
-	memset(samples, 0, num_samples * 2 * sizeof(s16));
-
-	if (PowerPC::GetState() != PowerPC::CPU_RUNNING)
-	{
-		// Silence
-		return num_samples;
-	}
-
-	m_dma_mixer.Mix(samples, num_samples, consider_framelimit);
-	m_streaming_mixer.Mix(samples, num_samples, consider_framelimit);
-	m_wiimote_speaker_mixer.Mix(samples, num_samples, consider_framelimit);
 	return num_samples;
 }
 
 void CMixer::MixerFifo::PushSamples(const s16 *samples, u32 num_samples)
-{
+{ 
 	// Cache access in non-volatile variable
 	// indexR isn't allowed to cache in the audio throttling loop as it
 	// needs to get updates to not deadlock.
@@ -226,21 +294,12 @@ void CMixer::MixerFifo::PushSamples(const s16 *samples, u32 num_samples)
 	// AyuanX: Actual re-sampling work has been moved to sound thread
 	// to alleviate the workload on main thread
 	// and we simply store raw data here to make fast mem copy
-	int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (current_w_index & INDEX_MASK)) * sizeof(s16);
-	if (over_bytes > 0)
+	for (u32 i = 0; i < num_samples * 2; ++i)
 	{
-		memcpy(&m_buffer[current_w_index & INDEX_MASK], samples, num_samples * 4 - over_bytes);
-		memcpy(&m_buffer[0], samples + (num_samples * 4 - over_bytes) / sizeof(s16), over_bytes);
-	}
-	else
-	{
-		memcpy(&m_buffer[current_w_index & INDEX_MASK], samples, num_samples * 4);
+		m_float_buffer[(current_w_index + i) & INDEX_MASK] = Signed16ToFloat(Common::swap16(samples[i]));
 	}
 
 	Common::AtomicAdd(m_w_index, num_samples * 2);
-
-	current_w_index = Common::AtomicLoad(m_w_index);
-	PopulateFloats(previous_w_index, current_w_index);
 
 	return;
 }
@@ -270,7 +329,8 @@ void CMixer::PushWiimoteSpeakerSamples(const s16 *samples, u32 num_samples, u32 
 		for (u32 i = 0; i < num_samples; ++i)
 		{
 			samples_stereo[i * 2] = Common::swap16(samples[i]);
-			samples_stereo[i * 2 + 1] = Common::swap16(samples[i]);
+			//samples_stereo[i * 2 + 1] = Common::swap16(samples[i]);
+			samples_stereo[i * 2 + 1] = 0;
 		}
 
 		m_wiimote_speaker_mixer.PushSamples(samples_stereo, num_samples);
@@ -304,6 +364,12 @@ void CMixer::MixerFifo::SetInputSampleRate(u32 rate)
 
 void CMixer::MixerFifo::SetVolume(u32 lvolume, u32 rvolume)
 {
-	m_l_volume = lvolume + (lvolume >> 7);
-	m_r_volume = rvolume + (rvolume >> 7);
+	m_lvolume = lvolume;
+	m_rvolume = rvolume;
+}
+
+void CMixer::MixerFifo::GetVolume(u32* lvolume, u32* rvolume) const
+{
+	*lvolume = m_lvolume;
+	*rvolume = m_rvolume;
 }
