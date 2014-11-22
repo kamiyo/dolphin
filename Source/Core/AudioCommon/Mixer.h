@@ -29,9 +29,9 @@
 #define DITHER_SIZE		(DITHER_WIDTH / RAND_MAX)
 #define DITHER_OFFSET	(DITHER_WIDTH * DITHER_SHAPE)
 
-// Logarithmic compression
-#define COMPRESS_THRESH 0.8f
-#define COMPRESS_ALPHA  17.5098
+#define DITHER_BUFFER_SIZE 8
+#define DITHER_NOISE       (rand() / (float) RAND_MAX - 0.5f)
+#define DITHER_BUFFER_MASK 7
 
 class CMixer {
 
@@ -48,9 +48,11 @@ public:
 		, r_rand1(0), r_rand2(0)
 		, l_error1(0), l_error2(0)
 		, r_error1(0), r_error2(0)
+		, m_phase(0)
 	{
 		INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
 		m_output_buffer.reserve(MAX_SAMPLES * 2);
+		m_dither_buffer.resize(DITHER_BUFFER_SIZE * 2, 0.f);
 		m_sinc_table.resize(SINC_FSIZE, std::vector<float>(SINC_SIZE, 0));
 		PopulateSincTable();
 	}
@@ -195,10 +197,18 @@ protected:
 	volatile float m_speed; // Current rate of the emulation (1.0 = 100% speed)
 
 private:
+	void dither1(float* l_sample, float* r_sample);
+	void dither2(float* l_sample, float* r_sample);
+
 	std::vector<float> m_output_buffer;
+	std::vector<float> m_dither_buffer;
+
 	// dither accumulators
 	s32   l_rand1, l_rand2;
 	s32   r_rand1, r_rand2;
 	float l_error1, l_error2;
 	float r_error1, r_error2;
+	float m_phase;
+	// Lipshitz's minimally audible FIR
+	const float SHAPED_BS [] = { 2.033f, -2.165f, 1.959f, -1.590f, 0.6149f };
 };

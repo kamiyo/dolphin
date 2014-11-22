@@ -68,6 +68,11 @@ void CMixer::PopulateSincTable() {
 	}
 }
 
+inline float LinearInterpolate(const float s0, const float s1, const float t)
+{
+	return (1 - t) * s0 + t * s1;
+}
+
 void CMixer::MixerFifo::MixLinear(std::vector<float>& samples, u32 numSamples, bool consider_framelimit)
 {
 	u32 current_sample = 0;
@@ -102,8 +107,15 @@ void CMixer::MixerFifo::MixLinear(std::vector<float>& samples, u32 numSamples, b
 
 	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2)
 	{
-		samples[current_sample + 1] += l_volume * (m_float_buffer[r_index & INDEX_MASK] + (m_float_buffer[(r_index + 2) & INDEX_MASK] - m_float_buffer[r_index & INDEX_MASK]) * m_fraction);
-		samples[current_sample] += r_volume * (m_float_buffer[(r_index + 1) & INDEX_MASK] + (m_float_buffer[(r_index + 3) & INDEX_MASK] - m_float_buffer[(r_index + 1) & INDEX_MASK]) * m_fraction);
+		float l_output = LinearInterpolate(m_float_buffer[r_index       & INDEX_MASK],
+		                                   m_float_buffer[(r_index + 2) & INDEX_MASK],
+										   m_fraction);
+		float r_output = LinearInterpolate(m_float_buffer[(r_index + 1) & INDEX_MASK],
+			                               m_float_buffer[(r_index + 3) & INDEX_MASK],
+										   m_fraction);
+
+		samples[current_sample + 1] += l_volume * l_output;
+		samples[current_sample    ] += r_volume * r_output;
 	
 		m_fraction += ratio;
 		r_index += 2 * (int) m_fraction;
@@ -118,6 +130,7 @@ void CMixer::MixerFifo::MixLinear(std::vector<float>& samples, u32 numSamples, b
 		samples[current_sample] += s[0];
 		samples[current_sample + 1] += s[1];
 	}
+
 	Common::AtomicStore(m_r_index, r_index);
 
 }
@@ -203,6 +216,33 @@ void CMixer::MixerFifo::Mix(std::vector<float>& samples, u32 numSamples, bool co
 
 }
 
+void CMixer::dither1(float* l_sample, float* r_sample)
+{
+	l_rand2 = l_rand1;
+	l_rand1 = rand();
+	float l_shape = (*l_sample) + DITHER_SHAPE * (l_error1 + l_error1 - l_error2);
+	(*l_sample) = l_shape + DITHER_OFFSET + DITHER_SIZE * (float) (l_rand1 - l_rand2);
+
+	r_rand2 = r_rand1;
+	r_rand1 = rand();
+	float r_shape = (*r_sample) + DITHER_SHAPE * (r_error1 + r_error1 - r_error2);
+	(*r_sample) = r_shape + DITHER_OFFSET + DITHER_SIZE * (float) (r_rand1 - r_rand2);
+
+	// update dither accumulators
+	l_error2 = l_error1;
+	l_error1 = l_shape - (*l_sample);
+
+	r_error2 = r_error1;
+	r_error1 = r_shape - (*r_sample);
+}
+
+void CMixer::dither2(float* l_sample, float* r_sample)
+{
+	float tri_dither = DITHER_NOISE + DITHER_NOISE;
+	float dot_product = 
+
+}
+
 u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
 {
 	if (!samples)
@@ -220,50 +260,15 @@ u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
 	m_output_buffer.resize(num_samples * 2);
 	std::fill_n(m_output_buffer.begin(), num_samples * 2, 0.f);
 	
-	//m_dma_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
-	//m_streaming_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
-
-	// adding wiimote speaker runs risk of distortion (getting |values| > 1)
-	// we trust |dma + streaming| < 1.
-	// use logarithmic compression for now
-	u32 wiimote_lvolume = 0, wiimote_rvolume = 0;
-	m_wiimote_speaker_mixer.GetVolume(&wiimote_lvolume, &wiimote_rvolume);
-	if (wiimote_lvolume && wiimote_rvolume)
-	{
-		float highest_volume = std::max((float) wiimote_lvolume / 255, (float) wiimote_rvolume / 255);
-		m_wiimote_speaker_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
-		for (float sample : m_output_buffer)
-		{
-			if (abs(sample) > COMPRESS_THRESH)
-			{
-				float compress = (float) log(1 + COMPRESS_ALPHA * (abs(sample) - COMPRESS_THRESH) / (1 + highest_volume - COMPRESS_THRESH));
-				compress /= (float) log(1 + COMPRESS_ALPHA);
-				sample = sample / abs(sample) * (COMPRESS_THRESH + (1 - COMPRESS_THRESH) * compress);
-			}
-		}
-	}
+	m_dma_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
+	m_streaming_mixer.Mix(m_output_buffer, num_samples, consider_framelimit);
+	m_wiimote_speaker_mixer.MixLinear(m_output_buffer, num_samples, consider_framelimit);
 
 	for (u32 i = 0; i < num_samples * 2; i += 2) {
 		// dither
 		float l_output = m_output_buffer[i + 1];
 		float r_output = m_output_buffer[i];
-
-		l_rand2 = l_rand1;
-		l_rand1 = rand();
-		float l_shape = l_output + DITHER_SHAPE * (l_error1 + l_error1 - l_error2);
-		l_output = l_shape + DITHER_OFFSET + DITHER_SIZE * (float) (l_rand1 - l_rand2);
-
-		r_rand2 = r_rand1;
-		r_rand1 = rand();
-		float r_shape = r_output + DITHER_SHAPE * (r_error1 + r_error1 - r_error2);
-		r_output = r_shape + DITHER_OFFSET + DITHER_SIZE * (float) (r_rand1 - r_rand2);
-
-		// update dither accumulators
-		l_error2 = l_error1;
-		l_error1 = l_shape - l_output;
-
-		r_error2 = r_error1;
-		r_error1 = r_shape - r_output;
+		dither1(&m_output_buffer[i + 1], &m_output_buffer[i]);
 
 		// clamp and output
 		MathUtil::Clamp(&l_output, -1.f, 1.f);
@@ -271,8 +276,6 @@ u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
 		
 		MathUtil::Clamp(&r_output, -1.f, 1.f);
 		samples[i] = FloatToSigned16(r_output);
-		INFO_LOG(DSPHLE, "%d ", samples[i]);
-		INFO_LOG(DSPHLE, "%d ", samples[i + 1]);
 	}
 
 	return num_samples;
@@ -329,8 +332,7 @@ void CMixer::PushWiimoteSpeakerSamples(const s16 *samples, u32 num_samples, u32 
 		for (u32 i = 0; i < num_samples; ++i)
 		{
 			samples_stereo[i * 2] = Common::swap16(samples[i]);
-			//samples_stereo[i * 2 + 1] = Common::swap16(samples[i]);
-			samples_stereo[i * 2 + 1] = 0;
+			samples_stereo[i * 2 + 1] = Common::swap16(samples[i]);
 		}
 
 		m_wiimote_speaker_mixer.PushSamples(samples_stereo, num_samples);
