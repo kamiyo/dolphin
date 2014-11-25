@@ -40,14 +40,6 @@ inline float SincSinc(float x, float window_width)
 	return (float) (window_width * sin(pi_x) * sin(pi_x / window_width) / (pi_x * pi_x));
 }
 
-//void CMixer::MixerFifo::PopulateFloats(u32 start, u32 stop)
-//{
-//	for (u32 i = start; i < stop; ++i)
-//	{
-//		m_float_buffer[i & INDEX_MASK] = Signed16ToFloat(Common::swap16(m_buffer[i & INDEX_MASK]));
-//	}
-//}
-
 void CMixer::PopulateSincTable() {
 	float table_center = SINC_SIZE / 2;
 	for (int i = 0; i < SINC_FSIZE; ++i)
@@ -71,6 +63,48 @@ void CMixer::PopulateSincTable() {
 inline float LinearInterpolate(const float s0, const float s1, const float t)
 {
 	return (1 - t) * s0 + t * s1;
+}
+
+float CMixer::Resampler::ModBessel0th(const float x)
+{
+	float sum = 1;
+	int factorial_store = 1;
+	float half_x = x / 2.f;
+	float previous = 1;
+	do {
+		float temp = half_x / (float)factorial_store;
+		temp *= temp;
+		previous *= temp;
+		sum += previous;
+		factorial_store++;
+	} while (previous >= BESSEL_EPSILON * sum);
+	return sum;
+}
+
+void CMixer::Resampler::PopulateFilterCoeff()
+{
+	m_lowpass_filter[0] = ROLLOFF;
+	for (u32 i = 1; i < m_lowpass_filter.size(); ++i)
+	{
+		float temp = M_PI * (float) i / SAMPLES_PER_CROSSING;
+		m_lowpass_filter[i] = sin(temp * ROLLOFF) / temp;
+	}
+
+	float I0_beta = 1.0 / ModBessel0th(BETA);
+	float inside = 1.0 / (m_lowpass_filter.size());
+	for (u32 i = 1; i < m_lowpass_filter.size(); ++i)
+	{
+		float temp = (float) i * inside;
+		temp = 1.0 - temp * temp;
+		temp = (temp < 0) ? 0 : temp;
+		m_lowpass_filter[i] *= ModBessel0th(BETA * sqrt(temp)) * I0_beta;
+	}
+
+	for (u32 i = 0; i < m_lowpass_filter.size() - 1; ++i)
+	{
+		m_lowpass_delta[i] = m_lowpass_filter[i + 1] - m_lowpass_filter[i];
+	}
+	m_lowpass_delta.back() = -1.f * m_lowpass_filter.back();
 }
 
 void CMixer::MixerFifo::MixLinear(std::vector<float>& samples, u32 numSamples, bool consider_framelimit)
@@ -239,7 +273,7 @@ void CMixer::dither1(float* l_sample, float* r_sample)
 void CMixer::dither2(float* l_sample, float* r_sample)
 {
 	float tri_dither = DITHER_NOISE + DITHER_NOISE;
-	float dot_product = 
+	/*float dot_product = */
 
 }
 

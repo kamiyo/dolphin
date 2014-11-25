@@ -33,6 +33,9 @@
 #define DITHER_NOISE       (rand() / (float) RAND_MAX - 0.5f)
 #define DITHER_BUFFER_MASK 7
 
+// Bessel defines
+#define BESSEL_EPSILON 1e-21
+
 class CMixer {
 
 public:
@@ -180,7 +183,7 @@ protected:
 	};
 
 	std::vector<std::vector<float> > m_sinc_table;   // [SINC_FSIZE][SINC_SIZE];
-	
+
 	MixerFifo m_dma_mixer;
 	MixerFifo m_streaming_mixer;
 	MixerFifo m_wiimote_speaker_mixer;
@@ -195,6 +198,26 @@ protected:
 	std::mutex m_cs_mixing;
 
 	volatile float m_speed; // Current rate of the emulation (1.0 = 100% speed)
+
+	class Resampler {
+		const u32 NUM_CROSSINGS = 35;
+		const u32 SAMPLES_PER_CROSSING = 4096;
+		const float ROLLOFF = 0.90;
+		const float BETA = 6;
+
+		std::vector<double> m_lowpass_filter;
+		std::vector<double> m_lowpass_delta;
+
+		void PopulateFilterCoeff();
+		float ModBessel0th(const float x);
+	public:
+		Resampler() {
+			m_lowpass_filter.resize(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
+			m_lowpass_delta.resize(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
+			PopulateFilterCoeff();
+		}
+
+	};
 
 private:
 	void dither1(float* l_sample, float* r_sample);
