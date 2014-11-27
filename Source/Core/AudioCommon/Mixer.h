@@ -19,8 +19,8 @@
 #define CONTROL_AVG     32
 
 // Lanczos table
-#define SINC_FSIZE		65536	// sinc table granularity = 1 / SINC_FSIZE.
-#define SINC_SIZE		(7 - 1) // see comment for populate_sinc_table()
+#define SINC_FSIZE		4096	// sinc table granularity = 1 / SINC_FSIZE.
+#define SINC_SIZE		(35 - 1) // see comment for populate_sinc_table()
 
 // Dither defines
 #define DITHER_SHAPE	0.5f
@@ -44,6 +44,7 @@ public:
 		, m_streaming_mixer(this, 48000)
 		, m_wiimote_speaker_mixer(this, 3000)
 		, m_sample_rate(BackendSampleRate)
+		, m_resampler()
 		, m_log_dtk_audio(0)
 		, m_log_dsp_audio(0)
 		, m_speed(0)
@@ -58,6 +59,8 @@ public:
 		m_dither_buffer.resize(DITHER_BUFFER_SIZE * 2, 0.f);
 		m_sinc_table.resize(SINC_FSIZE, std::vector<float>(SINC_SIZE, 0));
 		PopulateSincTable();
+		const float SHAPED_BS[5] = { 2.033f, -2.165f, 1.959f, -1.590f, 0.6149f };
+		size_t size = m_resampler.m_lowpass_filter.size();
 	}
 
 	virtual ~CMixer() {}
@@ -182,6 +185,29 @@ protected:
 
 	};
 
+	class Resampler {
+		const double ROLLOFF = 0.90;
+		const double BETA = 6;
+
+		void PopulateFilterCoeff();
+		double ModBessel0th(const double x);
+	public:
+		static const u32 NUM_CROSSINGS = 35;
+		static const u32 SAMPLES_PER_CROSSING = 4096;
+
+		std::vector<std::vector<double> > m_lowpass_filter;
+		std::vector<std::vector<double> > m_lowpass_delta;
+
+		Resampler() {
+			m_lowpass_filter.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1) / 2, 0));
+			m_lowpass_delta.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1) / 2, 0));
+			PopulateFilterCoeff();
+		}
+
+	};
+
+	Resampler m_resampler;
+
 	std::vector<std::vector<float> > m_sinc_table;   // [SINC_FSIZE][SINC_SIZE];
 
 	MixerFifo m_dma_mixer;
@@ -199,26 +225,6 @@ protected:
 
 	volatile float m_speed; // Current rate of the emulation (1.0 = 100% speed)
 
-	class Resampler {
-		const u32 NUM_CROSSINGS = 35;
-		const u32 SAMPLES_PER_CROSSING = 4096;
-		const float ROLLOFF = 0.90;
-		const float BETA = 6;
-
-		std::vector<double> m_lowpass_filter;
-		std::vector<double> m_lowpass_delta;
-
-		void PopulateFilterCoeff();
-		float ModBessel0th(const float x);
-	public:
-		Resampler() {
-			m_lowpass_filter.resize(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
-			m_lowpass_delta.resize(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
-			PopulateFilterCoeff();
-		}
-
-	};
-
 private:
 	void dither1(float* l_sample, float* r_sample);
 	void dither2(float* l_sample, float* r_sample);
@@ -233,5 +239,5 @@ private:
 	float r_error1, r_error2;
 	float m_phase;
 	// Lipshitz's minimally audible FIR
-	const float SHAPED_BS [] = { 2.033f, -2.165f, 1.959f, -1.590f, 0.6149f };
+	static const float SHAPED_BS[5];
 };
