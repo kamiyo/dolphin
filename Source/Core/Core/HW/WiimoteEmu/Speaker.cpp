@@ -97,7 +97,7 @@ void Wiimote::SpeakerData(wm_speaker_data* sd)
 
 		// Following details from http://wiibrew.org/wiki/Wiimote#Speaker
 		sample_rate_dividend = 6000000;
-		volume_divisor = 0x40;
+		volume_divisor = 0x7F;
 	}
 	else
 	{
@@ -106,14 +106,14 @@ void Wiimote::SpeakerData(wm_speaker_data* sd)
 	}
 
 	// Speaker Pan
-	unsigned int vol = (unsigned int)(m_options->settings[4]->GetValue() * 100);
+	unsigned int pan = (unsigned int)(m_options->settings[4]->GetValue() * 100);
 
 	if (m_reg_speaker.sample_rate)
 	{
 		unsigned int sample_rate = sample_rate_dividend / m_reg_speaker.sample_rate;
 		float speaker_volume_ratio = (float)m_reg_speaker.volume / volume_divisor;
-		unsigned int left_volume = (unsigned int)((128 + vol) * speaker_volume_ratio);
-		unsigned int right_volume = (unsigned int)((128 - vol) * speaker_volume_ratio);
+		unsigned int left_volume = (unsigned int)((128 + pan) * speaker_volume_ratio);
+		unsigned int right_volume = (unsigned int)((128 - pan) * speaker_volume_ratio);
 
 		if (left_volume > 255)
 			left_volume = 255;
