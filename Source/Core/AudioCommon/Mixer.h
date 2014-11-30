@@ -19,8 +19,8 @@
 #define CONTROL_AVG     32
 
 // Lanczos table
-#define SINC_FSIZE		4096	// sinc table granularity = 1 / SINC_FSIZE.
-#define SINC_SIZE		(35 - 1) // see comment for populate_sinc_table()
+#define SINC_FSIZE		65536	// sinc table granularity = 1 / SINC_FSIZE.
+#define SINC_SIZE		(5 - 1) // see comment for populate_sinc_table()
 
 // Dither defines
 #define DITHER_SHAPE	0.5f
@@ -192,15 +192,15 @@ protected:
 		void PopulateFilterCoeff();
 		double ModBessel0th(const double x);
 	public:
-		static const u32 NUM_CROSSINGS = 35;
-		static const u32 SAMPLES_PER_CROSSING = 4096;
+		static const u32 NUM_CROSSINGS = 5;
+		static const u32 SAMPLES_PER_CROSSING = 65536;
 
 		std::vector<std::vector<double> > m_lowpass_filter;
 		std::vector<std::vector<double> > m_lowpass_delta;
 
 		Resampler() {
-			m_lowpass_filter.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1) / 2, 0));
-			m_lowpass_delta.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1) / 2, 0));
+			m_lowpass_filter.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1), 0));
+			m_lowpass_delta.resize(SAMPLES_PER_CROSSING, std::vector<double>((NUM_CROSSINGS - 1), 0));
 			PopulateFilterCoeff();
 		}
 

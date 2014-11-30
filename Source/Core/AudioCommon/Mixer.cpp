@@ -83,20 +83,31 @@ double CMixer::Resampler::ModBessel0th(const double x)
 
 void CMixer::Resampler::PopulateFilterCoeff()
 {
-	std::vector<double> temp_filter(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
-	std::vector<double> temp_delta(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1) / 2);
-	temp_filter[0] = ROLLOFF;
-	for (u32 i = 1; i < temp_filter.size(); ++i)
+	std::vector<double> temp_filter(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1));
+	std::vector<double> temp_delta(SAMPLES_PER_CROSSING * (NUM_CROSSINGS - 1));
+	//temp_filter[0] = ROLLOFF;
+	for (s32 i = 0; i < temp_filter.size(); ++i)
 	{
-		double temp = M_PI * (double) i / SAMPLES_PER_CROSSING;
-		temp_filter[i] = sin(temp * ROLLOFF) / temp;
+		s32 x = i - (s32)temp_filter.size() / 2 + 1;
+		if (x == 0)
+		{
+			temp_filter[i] = ROLLOFF;
+		}
+		else {
+			double temp = M_PI * (double) x / SAMPLES_PER_CROSSING;
+			temp_filter[i] = sin(temp * ROLLOFF) / temp;
+		}
 	}
 
 	double I0_beta = 1.0 / ModBessel0th(BETA);
 	double inside = 1.0 / (m_lowpass_filter.size());
-	for (u32 i = 1; i < m_lowpass_filter.size(); ++i)
+	for (s32 i = 0; i < m_lowpass_filter.size(); ++i)
 	{
-		double temp = (double) i * inside;
+		s32 x = i - (s32)temp_filter.size() / 2 + 1;
+		if (x == 0) {
+			continue;
+		}
+		double temp = (double) x * inside;
 		temp = 1.0 - temp * temp;
 		temp = (temp < 0) ? 0 : temp;
 		temp_filter[i] *= ModBessel0th(BETA * sqrt(temp)) * I0_beta;
@@ -109,7 +120,7 @@ void CMixer::Resampler::PopulateFilterCoeff()
 	temp_delta.back() = -1.f * temp_filter.back();
 
 	for (u32 i = 0; i < temp_filter.size(); ++i) {
-		u32 x = i % SAMPLES_PER_CROSSING;
+		u32 x = SAMPLES_PER_CROSSING - (i % SAMPLES_PER_CROSSING + 1);
 		u32 y = i / SAMPLES_PER_CROSSING;
 		m_lowpass_filter[x][y] = temp_filter[i];
 		m_lowpass_delta[x][y] = temp_delta[i];
@@ -212,36 +223,56 @@ void CMixer::MixerFifo::Mix(std::vector<float>& samples, u32 numSamples, bool co
 	
 	for (; current_sample < numSamples * 2 && ((w_index - r_index) & INDEX_MASK) > 2; current_sample += 2)
 	{
+		
+		//// get sinc table with floor(closest) desired offset
+		//float offset = (m_fraction * SINC_FSIZE);
+		//s32 index = (s32) floor(offset);
+		//offset -= index;
+		//const std::vector<float>& impulse = m_mixer->m_sinc_table[index];
+		//s32 index1 = index + 1; // (index + 1 == SINC_FSIZE) ? index : (index + 1);
+		//const std::vector<float>& impulse1 = (index1 < SINC_FSIZE) ? m_mixer->m_sinc_table[index1] : std::vector<float>(SINC_SIZE, 0);
+		//std::vector<float> weights(SINC_SIZE, 0);
+		//for (u32 i = 0; i < weights.size(); ++i) {
+		//	weights[i] = impulse[i] + (impulse1[i] - impulse[i]) * offset;
+		//}
+
+		//// interpolate
+		//std::vector<float> l_samples(SINC_SIZE);
+		//std::vector<float> r_samples(SINC_SIZE);
+		//for (u32 i = 0; i < SINC_SIZE; ++i)
+		//{
+		//	u32 current_index = r_index + 2 * (i - (SINC_SIZE / 2) + 1);
+		//	l_samples[i] = m_float_buffer[current_index       & INDEX_MASK] * weights[i];
+		//	r_samples[i] = m_float_buffer[(current_index + 1) & INDEX_MASK] * weights[i];
+		//}
+
+		//float left_output = 0;
+		//float right_output = 0;
+		//for (u32 i = 0; i < SINC_SIZE; ++i)
+		//{
+		//	left_output += l_samples[i];
+		//	right_output += r_samples[i];
+		//}
+
+		double left_output = 0;
+		double right_output = 0;
+
 		// get sinc table with floor(closest) desired offset
-		float offset = (m_fraction * SINC_FSIZE);
+		float offset = (m_fraction * Resampler::SAMPLES_PER_CROSSING);
 		s32 index = (s32) floor(offset);
 		offset -= index;
-		const std::vector<float>& impulse = m_mixer->m_sinc_table[index];
-		s32 index1 = index + 1; // (index + 1 == SINC_FSIZE) ? index : (index + 1);
-		const std::vector<float>& impulse1 = (index1 < SINC_FSIZE) ? m_mixer->m_sinc_table[index1] : std::vector<float>(SINC_SIZE, 0);
-		std::vector<float> weights(SINC_SIZE, 0);
-		for (u32 i = 0; i < weights.size(); ++i) {
-			weights[i] = impulse[i] + (impulse1[i] - impulse[i]) * offset;
-		}
+		const std::vector<double>& impulse = m_mixer->m_resampler.m_lowpass_filter[index];
+		const std::vector<double>& delta = m_mixer->m_resampler.m_lowpass_delta[index];
 
-		// interpolate
-		std::vector<float> l_samples(SINC_SIZE);
-		std::vector<float> r_samples(SINC_SIZE);
-		for (u32 i = 0; i < SINC_SIZE; ++i)
-		{
-			u32 current_index = r_index + (2 * i) - (SINC_SIZE / 2);
-			l_samples[i] = m_float_buffer[current_index       & INDEX_MASK] * weights[i];
-			r_samples[i] = m_float_buffer[(current_index + 1) & INDEX_MASK] * weights[i];
+		for (u32 i = 0; i < (Resampler::NUM_CROSSINGS - 1); ++i) {
+			double weight = impulse[i] + delta[i] * offset;
+			u32 current_index = r_index + 2 * (i - (Resampler::NUM_CROSSINGS - 1) / 2 + 1);
+			left_output += m_float_buffer[current_index & INDEX_MASK] * weight;
+			right_output += m_float_buffer[(current_index + 1) & INDEX_MASK] * weight;
 		}
-
-		float left_output = 0;
-		float right_output = 0;
-		for (u32 i = 0; i < SINC_SIZE; ++i)
-		{
-			left_output += l_samples[i];
-			right_output += r_samples[i];
-		}
-		/*double left_output = 0, right_output = 0;
+		
+		/*
+		double left_output = 0, right_output = 0;
 
 		double left_index_fraction = (m_fraction * Resampler::SAMPLES_PER_CROSSING);
 		u32 left_index = (u32) left_index_fraction;
@@ -264,8 +295,8 @@ void CMixer::MixerFifo::Mix(std::vector<float>& samples, u32 numSamples, bool co
 			double weight = right_impulse[i] + right_delta[i] * right_index_fraction;
 			left_output += (float) m_float_buffer[(r_index + 2 * (i + 1)) & INDEX_MASK] * weight;
 			right_output += (float) m_float_buffer[(r_index + 1 + 2 * (i + 1)) & INDEX_MASK] * weight;
-		}*/
-
+		}
+		*/
 		left_output = left_output * l_volume;
 		samples[current_sample + 1] += (float)left_output;
 
