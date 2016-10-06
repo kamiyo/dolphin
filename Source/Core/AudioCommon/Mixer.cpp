@@ -2,6 +2,7 @@
 // Licensed under GPLv2+
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cstring>
 
 #include "AudioCommon/AudioCommon.h"
@@ -12,12 +13,15 @@
 #include "Common/MathUtil.h"
 #include "Core/ConfigManager.h"
 
-#if _M_SSE >= 0x301 && !(defined __GNUC__ && !defined __SSSE3__)
-#include <tmmintrin.h>
-#endif
-
-CMixer::CMixer(unsigned int BackendSampleRate) : m_sampleRate(BackendSampleRate)
+CMixer::CMixer(u32 BackendSampleRate) : m_sampleRate(BackendSampleRate)
 {
+  m_wiimote_speaker_mixer = std::make_unique<LinearMixer>(this, 3000);
+
+  std::shared_ptr<WindowedSincFilter> FIR_filter(new WindowedSincFilter());
+
+  m_dma_mixer = std::make_unique<SincMixer>(this, 32000, FIR_filter);
+  m_streaming_mixer = std::make_unique<SincMixer>(this, 48000, FIR_filter);
+
   INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
 }
 
@@ -26,10 +30,9 @@ CMixer::~CMixer()
 }
 
 // Executed from sound stream thread
-unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples,
-                                    bool consider_framelimit)
+u32 CMixer::MixerFifo::Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numSamples, bool consider_framelimit = true)
 {
-  unsigned int currentSample = 0;
+  u32 currentSample = 0;
 
   // Cache access in non-volatile variable
   // This is the only function changing the read value, so it's safe to
@@ -63,48 +66,42 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples,
     aid_sample_rate = aid_sample_rate * emulationspeed;
   }
 
-  const u32 ratio = (u32)(65536.0f * aid_sample_rate / (float)m_mixer->m_sampleRate);
+  const float ratio = aid_sample_rate / (float)m_mixer->m_sampleRate;
 
-  s32 lvolume = m_LVolume.load();
-  s32 rvolume = m_RVolume.load();
+  float lvolume = m_LVolume.load();
+  float rvolume = m_RVolume.load();
+  u32 floatI = m_floatI.load();
+  for (; ((indexW - floatI) & INDEX_MASK) > 0; ++floatI) {
+    m_floats[floatI & INDEX_MASK] = MathUtil::SignedShortToFloat(Common::swap16(m_buffer[floatI & INDEX_MASK]));
 
-  // TODO: consider a higher-quality resampling algorithm.
-  for (; currentSample < numSamples * 2 && ((indexW - indexR) & INDEX_MASK) > 2; currentSample += 2)
-  {
-    u32 indexR2 = indexR + 2;  // next sample
-
-    s16 l1 = Common::swap16(m_buffer[indexR & INDEX_MASK]);   // current
-    s16 l2 = Common::swap16(m_buffer[indexR2 & INDEX_MASK]);  // next
-    int sampleL = ((l1 << 16) + (l2 - l1) * (u16)m_frac) >> 16;
-    sampleL = (sampleL * lvolume) >> 8;
-    sampleL += samples[currentSample + 1];
-    samples[currentSample + 1] = MathUtil::Clamp(sampleL, -32767, 32767);
-
-    s16 r1 = Common::swap16(m_buffer[(indexR + 1) & INDEX_MASK]);   // current
-    s16 r2 = Common::swap16(m_buffer[(indexR2 + 1) & INDEX_MASK]);  // next
-    int sampleR = ((r1 << 16) + (r2 - r1) * (u16)m_frac) >> 16;
-    sampleR = (sampleR * rvolume) >> 8;
-    sampleR += samples[currentSample];
-    samples[currentSample] = MathUtil::Clamp(sampleR, -32767, 32767);
-
-    m_frac += ratio;
-    indexR += 2 * (u16)(m_frac >> 16);
-    m_frac &= 0xffff;
   }
 
+  m_floatI.store(floatI);
+
+  for (; currentSample < numSamples * 2 && ((indexW - indexR) & INDEX_MASK) >(m_filter_length + 5) * 2; currentSample += 2)
+  {
+    float sample_l, sample_r;
+    Interpolate(indexR, &sample_l, &sample_r);
+
+    samples[currentSample + 1] += sample_l * lvolume;
+    samples[currentSample] += sample_r * rvolume;
+
+    m_frac += ratio;
+    indexR += 2 * (s32)m_frac;
+    m_frac = m_frac - (s32)m_frac;
+
+  }
+
+
   // Padding
-  short s[2];
-  s[0] = Common::swap16(m_buffer[(indexR - 1) & INDEX_MASK]);
-  s[1] = Common::swap16(m_buffer[(indexR - 2) & INDEX_MASK]);
-  s[0] = (s[0] * rvolume) >> 8;
-  s[1] = (s[1] * lvolume) >> 8;
+  float s[2];
+  s[0] = m_floats[(indexR - 1) & INDEX_MASK] * rvolume;
+  s[1] = m_floats[(indexR - 2) & INDEX_MASK] * lvolume;
+
   for (; currentSample < numSamples * 2; currentSample += 2)
   {
-    int sampleR = MathUtil::Clamp(s[0] + samples[currentSample + 0], -32767, 32767);
-    int sampleL = MathUtil::Clamp(s[1] + samples[currentSample + 1], -32767, 32767);
-
-    samples[currentSample + 0] = sampleR;
-    samples[currentSample + 1] = sampleL;
+    samples[currentSample] += s[0];
+    samples[currentSample + 1] += s[1];
   }
 
   // Flush cached variable
@@ -113,20 +110,24 @@ unsigned int CMixer::MixerFifo::Mix(short* samples, unsigned int numSamples,
   return numSamples;
 }
 
-unsigned int CMixer::Mix(short* samples, unsigned int num_samples, bool consider_framelimit)
+u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
 {
   if (!samples)
     return 0;
 
-  memset(samples, 0, num_samples * 2 * sizeof(short));
+  memset(samples, 0, num_samples * 2 * sizeof(s16));
+  std::fill_n(m_accumulator.begin(), num_samples * 2, 0);
 
-  m_dma_mixer.Mix(samples, num_samples, consider_framelimit);
-  m_streaming_mixer.Mix(samples, num_samples, consider_framelimit);
-  m_wiimote_speaker_mixer.Mix(samples, num_samples, consider_framelimit);
+  m_dma_mixer->Mix(m_accumulator, num_samples, consider_framelimit);
+  m_streaming_mixer->Mix(m_accumulator, num_samples, consider_framelimit);
+  m_wiimote_speaker_mixer->Mix(m_accumulator, num_samples, consider_framelimit);
+
+  //dither here
+
   return num_samples;
 }
 
-void CMixer::MixerFifo::PushSamples(const short* samples, unsigned int num_samples)
+void CMixer::MixerFifo::PushSamples(const s16* samples, u32 num_samples)
 {
   // Cache access in non-volatile variable
   // indexR isn't allowed to cache in the audio throttling loop as it
@@ -141,11 +142,11 @@ void CMixer::MixerFifo::PushSamples(const short* samples, unsigned int num_sampl
   // AyuanX: Actual re-sampling work has been moved to sound thread
   // to alleviate the workload on main thread
   // and we simply store raw data here to make fast mem copy
-  int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (indexW & INDEX_MASK)) * sizeof(short);
+  int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (indexW & INDEX_MASK)) * sizeof(s16);
   if (over_bytes > 0)
   {
     memcpy(&m_buffer[indexW & INDEX_MASK], samples, num_samples * 4 - over_bytes);
-    memcpy(&m_buffer[0], samples + (num_samples * 4 - over_bytes) / sizeof(short), over_bytes);
+    memcpy(&m_buffer[0], samples + (num_samples * 4 - over_bytes) / sizeof(s16), over_bytes);
   }
   else
   {
@@ -155,59 +156,59 @@ void CMixer::MixerFifo::PushSamples(const short* samples, unsigned int num_sampl
   m_indexW.fetch_add(num_samples * 2);
 }
 
-void CMixer::PushSamples(const short* samples, unsigned int num_samples)
+void CMixer::PushSamples(const s16* samples, u32 num_samples)
 {
-  m_dma_mixer.PushSamples(samples, num_samples);
-  int sample_rate = m_dma_mixer.GetInputSampleRate();
+  m_dma_mixer->PushSamples(samples, num_samples);
+  int sample_rate = m_dma_mixer->GetInputSampleRate();
   if (m_log_dsp_audio)
     m_wave_writer_dsp.AddStereoSamplesBE(samples, num_samples, sample_rate);
 }
 
-void CMixer::PushStreamingSamples(const short* samples, unsigned int num_samples)
+void CMixer::PushStreamingSamples(const s16* samples, u32 num_samples)
 {
-  m_streaming_mixer.PushSamples(samples, num_samples);
-  int sample_rate = m_streaming_mixer.GetInputSampleRate();
+  m_streaming_mixer->PushSamples(samples, num_samples);
+  int sample_rate = m_streaming_mixer->GetInputSampleRate();
   if (m_log_dtk_audio)
     m_wave_writer_dtk.AddStereoSamplesBE(samples, num_samples, sample_rate);
 }
 
-void CMixer::PushWiimoteSpeakerSamples(const short* samples, unsigned int num_samples,
-                                       unsigned int sample_rate)
+void CMixer::PushWiimoteSpeakerSamples(const s16* samples, u32 num_samples,
+                                       u32 sample_rate)
 {
-  short samples_stereo[MAX_SAMPLES * 2];
+  s16 samples_stereo[MAX_SAMPLES * 2];
 
   if (num_samples < MAX_SAMPLES)
   {
-    m_wiimote_speaker_mixer.SetInputSampleRate(sample_rate);
+    m_wiimote_speaker_mixer->SetInputSampleRate(sample_rate);
 
-    for (unsigned int i = 0; i < num_samples; ++i)
+    for (u32 i = 0; i < num_samples; ++i)
     {
       samples_stereo[i * 2] = Common::swap16(samples[i]);
       samples_stereo[i * 2 + 1] = Common::swap16(samples[i]);
     }
 
-    m_wiimote_speaker_mixer.PushSamples(samples_stereo, num_samples);
+    m_wiimote_speaker_mixer->PushSamples(samples_stereo, num_samples);
   }
 }
 
-void CMixer::SetDMAInputSampleRate(unsigned int rate)
+void CMixer::SetDMAInputSampleRate(u32 rate)
 {
-  m_dma_mixer.SetInputSampleRate(rate);
+  m_dma_mixer->SetInputSampleRate(rate);
 }
 
-void CMixer::SetStreamInputSampleRate(unsigned int rate)
+void CMixer::SetStreamInputSampleRate(u32 rate)
 {
-  m_streaming_mixer.SetInputSampleRate(rate);
+  m_streaming_mixer->SetInputSampleRate(rate);
 }
 
-void CMixer::SetStreamingVolume(unsigned int lvolume, unsigned int rvolume)
+void CMixer::SetStreamingVolume(u32 lvolume, u32 rvolume)
 {
-  m_streaming_mixer.SetVolume(lvolume, rvolume);
+  m_streaming_mixer->SetVolume(lvolume, rvolume);
 }
 
-void CMixer::SetWiimoteSpeakerVolume(unsigned int lvolume, unsigned int rvolume)
+void CMixer::SetWiimoteSpeakerVolume(u32 lvolume, u32 rvolume)
 {
-  m_wiimote_speaker_mixer.SetVolume(lvolume, rvolume);
+  m_wiimote_speaker_mixer->SetVolume(lvolume, rvolume);
 }
 
 void CMixer::StartLogDTKAudio(const std::string& filename)
@@ -215,7 +216,7 @@ void CMixer::StartLogDTKAudio(const std::string& filename)
   if (!m_log_dtk_audio)
   {
     m_log_dtk_audio = true;
-    m_wave_writer_dtk.Start(filename, m_streaming_mixer.GetInputSampleRate());
+    m_wave_writer_dtk.Start(filename, m_streaming_mixer->GetInputSampleRate());
     m_wave_writer_dtk.SetSkipSilence(false);
     NOTICE_LOG(AUDIO, "Starting DTK Audio logging");
   }
@@ -244,7 +245,7 @@ void CMixer::StartLogDSPAudio(const std::string& filename)
   if (!m_log_dsp_audio)
   {
     m_log_dsp_audio = true;
-    m_wave_writer_dsp.Start(filename, m_dma_mixer.GetInputSampleRate());
+    m_wave_writer_dsp.Start(filename, m_dma_mixer->GetInputSampleRate());
     m_wave_writer_dsp.SetSkipSilence(false);
     NOTICE_LOG(AUDIO, "Starting DSP Audio logging");
   }
@@ -268,18 +269,18 @@ void CMixer::StopLogDSPAudio()
   }
 }
 
-void CMixer::MixerFifo::SetInputSampleRate(unsigned int rate)
+void CMixer::MixerFifo::SetInputSampleRate(u32 rate)
 {
   m_input_sample_rate = rate;
 }
 
-unsigned int CMixer::MixerFifo::GetInputSampleRate() const
+u32 CMixer::MixerFifo::GetInputSampleRate() const
 {
   return m_input_sample_rate;
 }
 
-void CMixer::MixerFifo::SetVolume(unsigned int lvolume, unsigned int rvolume)
+void CMixer::MixerFifo::SetVolume(u32 lvolume, u32 rvolume)
 {
-  m_LVolume.store(lvolume + (lvolume >> 7));
-  m_RVolume.store(rvolume + (rvolume >> 7));
+  m_LVolume.store(lvolume);
+  m_RVolume.store(rvolume);
 }
