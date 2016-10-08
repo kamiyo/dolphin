@@ -123,6 +123,13 @@ u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
   m_wiimote_speaker_mixer->Mix(m_accumulator, num_samples, consider_framelimit);
 
   //dither here
+  // first no dither
+
+  std::transform(m_accumulator.begin(), m_accumulator.begin() + num_samples * 2, samples,
+    [](float i)
+      {
+        return MathUtil::Clamp(MathUtil::FloatToSignedShort(i), (short)-32768, (short)32767);
+      });
 
   return num_samples;
 }

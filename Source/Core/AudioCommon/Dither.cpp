@@ -4,12 +4,24 @@
 
 #include "Dither.h"
 
-
 Dither::Dither()
+{
+  m_mersenne_twister.seed(std::random_device{}());
+}
+
+Dither::~Dither()
 {
 }
 
+float Dither::GenerateNoise() const
+{
+  return m_real_dist(m_mersenne_twister);
+}
 
-Dither::~Dither()
+TriangleDither::TriangleDither()
+{
+}
+
+TriangleDither::~TriangleDither()
 {
 }

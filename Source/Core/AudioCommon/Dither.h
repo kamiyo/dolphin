@@ -11,8 +11,18 @@ class Dither
 public:
   Dither();
   ~Dither();
+  float GenerateNoise() const;
+protected:
+  std::mt19937 m_mersenne_twister;
+  std::uniform_real_distribution<float> m_real_dist{0, 1};
+};
+
+class TriangleDither : public Dither
+{
+public:
+  TriangleDither();
+  ~TriangleDither();
 
 private:
-  std::mt19937 gen_noise;
   float state_l, state_r;
 };
