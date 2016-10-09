@@ -12,6 +12,7 @@
 
 #include "AudioCommon/WaveFile.h"
 #include "Common/CommonTypes.h"
+#include "Dither.h"
 
 class CMixer final
 {
@@ -68,21 +69,24 @@ private:
     u32 GetInputSampleRate() const;
     void SetVolume(u32 lvolume, u32 rvolume);
 
+  protected:
+    std::array<float, MAX_SAMPLES * 2> m_floats{};
+    float m_numLeftI = 0.0f;
+    float m_frac = 0;
+    std::shared_ptr<WindowedSincFilter> m_filter;
+    u32 m_filter_length;
+    u32 timer = 0;
+
   private:
     CMixer* m_mixer;
     unsigned m_input_sample_rate;
     std::array<s16, MAX_SAMPLES * 2> m_buffer{};
-    std::array<float, MAX_SAMPLES * 2> m_floats{};
     std::atomic<u32> m_indexW{0};
     std::atomic<u32> m_indexR{0};
     std::atomic<u32> m_floatI{0};
     // Volume ranges from 0-256
     std::atomic<s32> m_LVolume{256};
     std::atomic<s32> m_RVolume{256};
-    float m_numLeftI = 0.0f;
-    float m_frac = 0;
-    std::shared_ptr<WindowedSincFilter> m_filter;
-    u32 m_filter_length;
   };
 
   class LinearMixer : public MixerFifo
@@ -110,14 +114,17 @@ private:
   std::unique_ptr<MixerFifo> m_dma_mixer;
   std::unique_ptr<MixerFifo> m_streaming_mixer;
   std::unique_ptr<MixerFifo> m_wiimote_speaker_mixer;
+  std::unique_ptr<Dither> m_dither;
   u32 m_sampleRate;
 
   WaveFileWriter m_wave_writer_dtk;
   WaveFileWriter m_wave_writer_dsp;
+  WaveFileWriter m_wave_writer_debug;
 
   bool m_log_dtk_audio = false;
   bool m_log_dsp_audio = false;
 
   // Current rate of emulation (1.0 = 100% speed)
   std::atomic<float> m_speed{0.0f};
+
 };
