@@ -13,8 +13,6 @@
 #include "Common/MathUtil.h"
 #include "Core/ConfigManager.h"
 
-#define _LINEAR_
-
 CMixer::CMixer(u32 BackendSampleRate) : m_sampleRate(BackendSampleRate)
 {
   m_wiimote_speaker_mixer = std::make_unique<LinearMixer>(this, 3000);
