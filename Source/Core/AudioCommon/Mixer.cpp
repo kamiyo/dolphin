@@ -13,34 +13,41 @@
 #include "Common/MathUtil.h"
 #include "Core/ConfigManager.h"
 
+#define _LINEAR_
+
 CMixer::CMixer(u32 BackendSampleRate) : m_sampleRate(BackendSampleRate)
 {
   m_wiimote_speaker_mixer = std::make_unique<LinearMixer>(this, 3000);
-#ifndef _LINEAR_
   std::shared_ptr<WindowedSincFilter> FIR_filter(new WindowedSincFilter(17, 512, 0.8f, 6.0));
 
-  m_dma_mixer = std::make_unique<SincMixer>(this, 32000, FIR_filter);
-  m_streaming_mixer = std::make_unique<SincMixer>(this, 48000, FIR_filter);
-#else
+#ifdef _LINEAR_
   m_dma_mixer = std::make_unique<LinearMixer>(this, 32000);
   m_streaming_mixer = std::make_unique<LinearMixer>(this, 48000);
+#else
+  m_dma_mixer = std::make_unique<SincMixer>(this, 32000, FIR_filter);
+  m_streaming_mixer = std::make_unique<SincMixer>(this, 48000, FIR_filter);
 #endif
 
-  m_dither = std::make_unique<TriangleDither>();
+  m_dither = std::make_unique<ShapedDither>();
 
   INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
 
   // DEBUG
+#ifdef _DEBUG_DUMP_
   std::string audio_dump_file = File::GetUserPath(D_DUMPAUDIO_IDX) + "debugdump.wav";
   File::CreateFullPath(audio_dump_file);
   m_wave_writer_debug.Start(audio_dump_file, BackendSampleRate);
   m_wave_writer_dtk.SetSkipSilence(false);
   NOTICE_LOG(AUDIO, "Starting DEBUG Audio logging");
+#endif
 }
 
 CMixer::~CMixer()
 {
+#ifdef _DEBUG_DUMP_
   m_wave_writer_debug.Stop();
+#endif
+
 }
 
 void CMixer::LinearMixer::Interpolate(u32 index, float* output_l, float* output_r) {
@@ -56,25 +63,28 @@ void CMixer::LinearMixer::Interpolate(u32 index, float* output_l, float* output_
 void CMixer::SincMixer::Interpolate(u32 index, float* output_l, float* output_r) {
   float left_channel = 0.0, right_channel = 0.0;
 
-  float* filter = m_filter->m_coeffs;
-  float* deltas = m_filter->m_deltas;
+  const float* filter = m_filter->m_coeffs;
+  const float* deltas = m_filter->m_deltas;
   const u32 samples_per_crossing = m_filter->m_samples_per_crossing;
-  const u32 wing_size = m_filter->m_wing_size;
+  const u32 one_side_crossings = (m_filter->m_num_crossings - 1) / 2;
+  //const u32 wing_size = m_filter->m_wing_size;
 
   float left_frac = (m_frac * samples_per_crossing);
   u32 left_index = (u32)left_frac;
   left_frac = left_frac - left_index;
 
   u32 current_index = index;
-  while (left_index < wing_size)
+
+  left_index = m_filter->GetColumnIndex(left_index);
+
+  for (u32 i = 0; i < one_side_crossings; ++i)
   {
-    float impulse = filter[left_index];
-    impulse += deltas[left_index] * left_frac;
+    float impulse = filter[left_index + i];
+    impulse += deltas[left_index + i] * left_frac;
 
     left_channel += m_floats[current_index & INDEX_MASK] * impulse;
     right_channel += m_floats[(current_index + 1) & INDEX_MASK] * impulse;
 
-    left_index += samples_per_crossing;
     current_index -= 2;
   }
 
@@ -83,15 +93,17 @@ void CMixer::SincMixer::Interpolate(u32 index, float* output_l, float* output_r)
   right_frac = right_frac - right_index;
 
   current_index = index + 2;
-  while (right_index < wing_size)
+
+  right_index = m_filter->GetColumnIndex(right_index);
+
+  for (u32 i = 0; i < one_side_crossings; ++i)
   {
-    float impulse = filter[right_index];
-    impulse += deltas[right_index] * right_frac;
+    float impulse = filter[right_index + i];
+    impulse += deltas[right_index + i] * right_frac;
 
     left_channel += m_floats[current_index & INDEX_MASK] * impulse;
     right_channel += m_floats[(current_index + 1) & INDEX_MASK] * impulse;
 
-    right_index += samples_per_crossing;
     current_index += 2;
   }
 
@@ -159,9 +171,7 @@ u32 CMixer::MixerFifo::Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numS
     m_frac += ratio;
     indexR += 2 * (s32)m_frac;
     m_frac = m_frac - (s32)m_frac;
-
   }
-
 
   // Padding
   float s[2];
@@ -195,7 +205,7 @@ u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
   // dither here
   // first no dither
 
-#ifndef _DITHER_
+#ifdef _NO_DITHER_
   std::transform(m_accumulator.begin(), m_accumulator.begin() + num_samples * 2, samples,
     [](float i)
       {
@@ -203,15 +213,12 @@ u32 CMixer::Mix(s16* samples, u32 num_samples, bool consider_framelimit)
       });
 
 #else
-  std::for_each(m_accumulator.begin(), m_accumulator.begin() + num_samples * 2, [](float& i)
-  {
-    i = MathUtil::Clamp(i, -1.f, 1.f);
-  });
   m_dither->Process(m_accumulator.data(), samples, num_samples);
 #endif
 
+#ifdef _DEBUG_DUMP_
   m_wave_writer_debug.AddStereoSamplesLE(samples, num_samples, this->GetSampleRate());
-
+#endif
   return num_samples;
 }
 
@@ -233,28 +240,12 @@ void CMixer::MixerFifo::PushSamples(const s16* samples, u32 num_samples)
   int over_bytes = num_samples * 4 - (MAX_SAMPLES * 2 - (indexW & INDEX_MASK)) * sizeof(s16);
   if (over_bytes > 0)
   {
-#ifndef _SINE_
     memcpy(&m_buffer[indexW & INDEX_MASK], samples, num_samples * 4 - over_bytes);
     memcpy(&m_buffer[0], samples + (num_samples * 4 - over_bytes) / sizeof(s16), over_bytes);
-#else
-    for (u32 i = 0; i < num_samples * 2; i += 2) {
-      m_buffer[(indexW + i) & INDEX_MASK] = Common::swap16(MathUtil::FloatToSignedShort(0.8f * (float)sin(3.14159265358979323846 * 0.0275 * timer)));
-      m_buffer[(indexW + i + 1) & INDEX_MASK] = Common::swap16(MathUtil::FloatToSignedShort(0.8f * (float)sin(3.14159265358979323846 * 0.0275 * timer)));
-      timer++;
-    }
-#endif
   }
   else
   {
-#ifndef _SINE_
     memcpy(&m_buffer[indexW & INDEX_MASK], samples, num_samples * 4);
-#else
-    for (u32 i = 0; i < num_samples * 2; i += 2) {
-      m_buffer[(indexW + i) & INDEX_MASK] = Common::swap16(MathUtil::FloatToSignedShort(0.8f * (float)sin(3.14159265358979323846 * 0.0275 * timer)));
-      m_buffer[(indexW + i + 1) & INDEX_MASK] = Common::swap16(MathUtil::FloatToSignedShort(0.8f * (float)sin(3.14159265358979323846 * 0.0275 * timer)));
-      timer++;
-    }
-#endif
   }
 
   m_indexW.fetch_add(num_samples * 2);

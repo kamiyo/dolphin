@@ -5,6 +5,7 @@
 #pragma once
 
 #include <random>
+#include <array>
 
 #include <Common/CommonTypes.h>
 
@@ -14,7 +15,7 @@ public:
   Dither();
   ~Dither() {}
   void Process(const float* input, s16* output, u32 num_samples);
-  // make sure input samples are pre-clamped to [-1, 1]
+  // function also clamps inputs to -1, 1
   virtual void DitherStereoSample(const float* in, s16* out) = 0;
 protected:
   float GenerateNoise();
@@ -34,5 +35,22 @@ public:
   void DitherStereoSample(const float* in, s16* out);
 
 private:
-  float state_l, state_r;
+  float state_l = 0, state_r = 0;
+};
+
+class ShapedDither : public Dither
+{
+public:
+  ShapedDither() : Dither()
+  {}
+  ~ShapedDither() {}
+  void DitherStereoSample(const float* in, s16* out);
+
+private:
+  int m_phase = 0;
+  static constexpr int MASK = 7;
+  static constexpr int SIZE = 8;
+  static constexpr float FIR[] = { 2.033f, -2.165f, 1.959f, -1.590f, 0.6149f };
+  std::array<float, SIZE> m_buffer_l{};
+  std::array<float, SIZE> m_buffer_r{};
 };

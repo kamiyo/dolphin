@@ -62,6 +62,27 @@ void WindowedSincFilter::PopulateFilterCoeffs()
   }
 }
 
+void WindowedSincFilter::TransposeTables()
+{
+  float* temp_coeffs = (float*)malloc(m_wing_size * sizeof(float));
+  float* temp_deltas = (float*)malloc(m_wing_size * sizeof(float));
+  memcpy(temp_coeffs, m_coeffs, m_wing_size * sizeof(float));
+  memcpy(temp_deltas, m_deltas, m_wing_size * sizeof(float));
+
+  for (u32 i = 0; i < m_wing_size; ++i)
+  {
+    u32 row = i / m_samples_per_crossing;
+    u32 column = i % m_samples_per_crossing;
+    u32 t_index = column * (m_num_crossings - 1) / 2 + row;
+    m_coeffs[t_index] = temp_coeffs[i];
+    m_deltas[t_index] = temp_deltas[i];
+  }
+
+  free(temp_coeffs);
+  free(temp_deltas);
+  temp_coeffs = temp_deltas = nullptr;
+}
+
 void WindowedSincFilter::CheckFilterCache()
 {
   const std::string audio_cache_path = File::GetUserPath(D_CACHE_IDX) + "Audio/";
@@ -104,20 +125,15 @@ void WindowedSincFilter::CheckFilterCache()
     INFO_LOG(AUDIO_INTERFACE, "filter not retrieved from cache: %s", filter_filename.c_str());
   }
 
-  if (create_coeffs)
+  if (create_coeffs || create_deltas)
   {
     PopulateFilterCoeffs();
-
+    PopulateFilterDeltas();
+    TransposeTables();
     if (!WriteFilterToFile(filter_filename, m_coeffs))
     {
       WARN_LOG(AUDIO_INTERFACE, "did not successfully store filter to cache: %s", filter_filename.c_str());
     }
-  }
-
-  if (create_deltas)
-  {
-    PopulateFilterDeltas();
-
     if (!WriteFilterToFile(deltas_filename, m_deltas))
     {
       WARN_LOG(AUDIO_INTERFACE, "did not successfully store deltas to cache: %s", deltas_filename.c_str());
