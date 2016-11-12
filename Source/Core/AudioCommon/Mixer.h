@@ -6,18 +6,20 @@
 
 #include <array>
 #include <atomic>
+#include <memory>
 
 #include "AudioCommon/BaseFilter.h"
-#include "AudioCommon/Dither.h"
 #include "AudioCommon/WaveFile.h"
 #include "Common/CommonTypes.h"
 #include "Common/RingBuffer.h"
+
+class Dither;
 
 class CMixer final
 {
 public:
   explicit CMixer(u32 BackendSampleRate);
-  ~CMixer() {}
+  ~CMixer() = default;
   // Called from audio threads
   u32 Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
 
@@ -50,12 +52,7 @@ private:
   class MixerFifo
   {
   public:
-    MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter = nullptr)
-        : m_mixer(mixer), m_filter(std::move(filter)), m_input_sample_rate(sample_rate)
-    {
-      m_floats.Resize(MAX_SAMPLES * 2);
-      m_shorts.Resize(MAX_SAMPLES * 2);
-    }
+    MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter = nullptr);
 
     void PushSamples(const s16* samples, u32 num_samples);
     u32 Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numSamples,

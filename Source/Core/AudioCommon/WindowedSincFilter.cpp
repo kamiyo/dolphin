@@ -4,6 +4,19 @@
 
 #include "AudioCommon/WindowedSincFilter.h"
 
+WindowedSincFilter::WindowedSincFilter(u32 num_crossings = 17, u32 samples_per_crossing = 512,
+                                       float cutoff_cycle = 0.5, float beta = 7.0)
+  : BaseFilter((num_crossings - 1) / 2), m_num_crossings(num_crossings),
+    m_samples_per_crossing(samples_per_crossing),
+    m_wing_size(samples_per_crossing * (num_crossings - 1) / 2), m_cutoff_cycle(cutoff_cycle),
+    m_kaiser_beta(beta)
+{
+  m_coeffs.resize(m_wing_size);
+  m_deltas.resize(m_wing_size);
+  PopulateFilterCoeffs();
+  PopulateFilterDeltas();
+}
+
 // iteratively generates zero-order modified Bessel function of the first kind
 // stop when improvements fall below threshold
 double WindowedSincFilter::ModBesselZeroth(const double x) const
@@ -14,7 +27,7 @@ double WindowedSincFilter::ModBesselZeroth(const double x) const
   double previous = 1.0;
   do
   {
-    double temp = half_x / (double)factorial_store;
+    double temp = half_x / static_cast<double>(factorial_store);
     temp *= temp;
     previous *= temp;
     factorial_store++;
@@ -25,7 +38,7 @@ double WindowedSincFilter::ModBesselZeroth(const double x) const
 
 void WindowedSincFilter::PopulateFilterDeltas()
 {
-  for (u32 i = 0; i < m_wing_size - 1; ++i)
+  for (size_t i = 0; i < m_wing_size - 1; ++i)
   {
     m_deltas[i] = m_coeffs[i + 1] - m_coeffs[i];
   }
@@ -38,17 +51,17 @@ void WindowedSincFilter::PopulateFilterCoeffs()
   double inv_size = 1.0 / (m_wing_size - 1);
   for (u32 i = 0; i < m_wing_size; ++i)
   {
-    double offset = PI * (double)i / (double)m_samples_per_crossing;
-    double sinc = (offset == 0.f) ? (double)m_cutoff_cycle : sin(offset * m_cutoff_cycle) / offset;
-    double radicand = (double)i * inv_size;
+    double offset = PI * static_cast<double>(i) / static_cast<double>(m_samples_per_crossing);
+    double sinc = (offset == 0.f) ? static_cast<double>(m_cutoff_cycle) : sin(offset * m_cutoff_cycle) / offset;
+    double radicand = static_cast<double>(i) * inv_size;
     radicand = 1.0 - radicand * radicand;
     // apply Kaiser window to sinc
-    m_coeffs[i] = (float)(sinc * ModBesselZeroth(m_kaiser_beta * sqrt(radicand)) * inv_I0_beta);
+    m_coeffs[i] = static_cast<float>(sinc * ModBesselZeroth(m_kaiser_beta * sqrt(radicand)) * inv_I0_beta);
   }
 
   // Scale so that DC signals have unity gain
   double dc_gain = 0;
-  for (u32 i = m_samples_per_crossing; i < m_wing_size; i += m_samples_per_crossing)
+  for (size_t i = m_samples_per_crossing; i < m_wing_size; i += m_samples_per_crossing)
   {
     dc_gain += m_coeffs[i];
   }
@@ -56,9 +69,9 @@ void WindowedSincFilter::PopulateFilterCoeffs()
   dc_gain += m_coeffs[0];
   double inv_dc_gain = 1.0 / dc_gain;
 
-  for (u32 i = 0; i < m_wing_size; ++i)
+  for (size_t i = 0; i < m_wing_size; ++i)
   {
-    m_coeffs[i] = (float)(m_coeffs[i] * inv_dc_gain);
+    m_coeffs[i] = static_cast<float>(m_coeffs[i] * inv_dc_gain);
   }
 }
 
@@ -75,12 +88,13 @@ void WindowedSincFilter::ConvolveStereo(const RingBuffer<float>& input, u32 inde
 void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 index, float* output_l,
                                         float* output_r, const float fraction) const
 {
-  float left_channel = 0.0, right_channel = 0.0;
+  float left_channel = 0.0;
+  float right_channel = 0.0;
 
   // Convolve left wing first
   float left_frac = (fraction * m_samples_per_crossing);
-  u32 left_index = (u32)left_frac;
-  left_frac -= (float)left_index;
+  u32 left_index = static_cast<u32>(left_frac);
+  left_frac -= static_cast<float>(left_index);
 
   u32 current_index = index - m_num_taps;
 
@@ -103,8 +117,8 @@ void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 inde
   else
   {
     right_frac = (1 - fraction) * m_samples_per_crossing;
-    right_index = (u32)right_frac;
-    right_frac -= (float)right_index;
+    right_index = static_cast<u32>(right_frac);
+    right_frac -= static_cast<float>(right_index);
   }
 
   current_index = index - m_num_taps + 2;
@@ -126,12 +140,13 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
                                           float* output_l, float* output_r, const float fraction,
                                           const float ratio) const
 {
-  float left_channel = 0.0, right_channel = 0.0;
+  float left_channel = 0.0;
+  float right_channel = 0.0;
 
   float left_frac = (fraction * m_samples_per_crossing);
   left_frac *= ratio;
-  u32 left_index = (u32)left_frac;
-  left_frac -= (float)left_index;
+  u32 left_index = static_cast<u32>(left_frac);
+  left_frac -= static_cast<float>(left_index);
 
   u32 current_index = index - m_num_taps;
 
@@ -143,10 +158,10 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
     left_channel += input[current_index] * impulse;
     right_channel += input[current_index + 1] * impulse;
 
-    left_frac += (float)left_index;
-    left_frac += ratio * (float)m_samples_per_crossing;
-    left_index = (u32)left_frac;
-    left_frac -= (float)left_index;
+    left_frac += static_cast<float>(left_index);
+    left_frac += ratio * static_cast<float>(m_samples_per_crossing);
+    left_index = static_cast<u32>(left_frac);
+    left_frac -= static_cast<float>(left_index);
   }
 
   float right_frac = 0.f;
@@ -154,15 +169,15 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
   if (fraction == 0.f)
   {
     right_frac = ratio * m_samples_per_crossing;
-    right_index = (u32)right_index;
-    right_frac -= (float)right_index;
+    right_index = static_cast<u32>(right_index);
+    right_frac -= static_cast<float>(right_index);
   }
   else
   {
     right_frac = (1 - fraction) * m_samples_per_crossing;
     right_frac *= ratio;
-    right_index = (u32)right_frac;
-    right_frac -= (float)right_index;
+    right_index = static_cast<u32>(right_frac);
+    right_frac -= static_cast<float>(right_index);
   }
 
   current_index = index - m_num_taps + 2;
@@ -175,10 +190,10 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
     left_channel += input[current_index] * impulse;
     right_channel += input[current_index + 1] * impulse;
 
-    right_frac += (float)right_index;
-    right_frac += ratio * (float)m_samples_per_crossing;
-    right_index = (u32)right_frac;
-    right_frac -= (float)right_index;
+    right_frac += static_cast<float>(right_index);
+    right_frac += ratio * static_cast<float>(m_samples_per_crossing);
+    right_index = static_cast<u32>(right_frac);
+    right_frac -= static_cast<float>(right_index);
   }
 
   *output_l = left_channel;
