@@ -15,12 +15,21 @@
 class WindowedSincFilter final : public BaseFilter
 {
 public:
-  // Default parameters give medium quality
-  // num_crossings affects transition-band-width, the sharper the rolloff, the more taps.
-  // samples_per_crossing affects the accuracy of the filter response; this is dependent
-  // on the bit-length of each filter sample. samples_per_crossing should be around
-  // 2 ^ (sample_bit_length / 2). In this case, since float = 32bit, we get 512.
+  // Default parameters give medium quality:
+  //
+  // num_crossings: affects transition-band-width, the sharper the rolloff, the more taps needed.
+  //
+  // samples_per_crossing: affects the accuracy of the filter response; this is dependent
+  //                       on the bit-length of each filter sample. samples_per_crossing
+  //                       should be around 2 ^ (sample_bit_length / 2). In this case,
+  //                       since float = 32bit, we choose 512.
+  //
+  // beta: parameter for Kaiser window (tradeoff between main-lobe width and side-lobes levels).
+  //       7.0 = about 70db attenuation
+  //
   // see ccrma.standford.edu/~jos/resample/
+  // CCRMA uses 27 taps x 512 samples for high quality.
+  //
   WindowedSincFilter(u32 num_crossings = 17, u32 samples_per_crossing = 512,
                      float cutoff_cycle = 0.5, float beta = 7.0);
 
@@ -44,7 +53,6 @@ private:
 
   // cutoff frequency (ratio of nyquist frequency)
   const float m_cutoff_cycle;
-  // parameter for Kaiser window (tradeoff between main-lobe width and side-lobes levels)
   const float m_kaiser_beta;
 
   const u32 m_num_crossings;         // filter taps

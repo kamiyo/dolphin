@@ -21,19 +21,12 @@ CMixer::CMixer(u32 BackendSampleRate) : m_output_sample_rate(BackendSampleRate)
 {
   std::shared_ptr<WindowedSincFilter> FIR_filter =
       std::make_shared<WindowedSincFilter>(17, 512, 0.8f, 6.f);
-  std::shared_ptr<LinearFilter> linear_filter = std::make_shared<LinearFilter>();
+  m_linear_filter = std::make_shared<LinearFilter>();
 
   m_dma_mixer = std::make_unique<MixerFifo>(this, 32000, FIR_filter);
   m_streaming_mixer = std::make_unique<MixerFifo>(this, 48000, FIR_filter);
 
   m_dither = std::make_unique<ShapedDither>();
-
-  // wiimote mixers should just use linear interpolation
-  for (size_t i = 0; i < MAX_WIIMOTES; ++i)
-  {
-    if (g_wiimote_sources[i] == WIIMOTE_SRC_EMU)
-      m_wiimote_speaker_mixers[i] = std::make_unique<MixerFifo>(this, 6000, linear_filter);
-  }
 
   INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
 }
@@ -103,7 +96,8 @@ u32 CMixer::MixerFifo::Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numS
   // Resampling loop
   for (; currentSample < numSamples * 2 && ((indexW - indexR) & INDEX_MASK) > 2; currentSample += 2)
   {
-    float sample_l, sample_r;
+    float sample_l;
+    float sample_r;
     m_filter->ConvolveStereo(m_floats, indexR, &sample_l, &sample_r, m_frac, rho);
 
     samples[currentSample] += sample_r * rvolume;
@@ -177,9 +171,14 @@ void CMixer::PushStreamingSamples(const s16* samples, u32 num_samples)
 void CMixer::PushWiimoteSpeakerSamples(u32 wiimote_index, const s16* samples, u32 num_samples,
                                        u32 sample_rate)
 {
+  if (m_wiimote_speaker_mixers[wiimote_index] == nullptr)
+  {
+    m_wiimote_speaker_mixers[wiimote_index] = std::make_unique<MixerFifo>(this, 6000, m_linear_filter);
+  }
+
   s16 samples_stereo[MAX_SAMPLES * 2];
 
-  if (num_samples < MAX_SAMPLES && m_wiimote_speaker_mixers[wiimote_index])
+  if (num_samples < MAX_SAMPLES)
   {
     m_wiimote_speaker_mixers[wiimote_index]->SetInputSampleRate(sample_rate);
 

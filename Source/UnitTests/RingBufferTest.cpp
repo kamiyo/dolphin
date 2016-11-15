@@ -13,13 +13,13 @@ TEST(RingBuffer, RingBuffer)
 {
   RingBuffer<u32> rb;
 
-  EXPECT_EQ(0u, rb.Size());
+  EXPECT_EQ(0u, rb.MaxSize());
   EXPECT_EQ(0u, rb.LoadHead());
   EXPECT_EQ(0u, rb.LoadTail());
 
   rb.Resize(10);
 
-  EXPECT_EQ(10u, rb.Size());
+  EXPECT_EQ(10u, rb.MaxSize());
 
   RingBuffer<u32> rb1(100000);
 
@@ -48,9 +48,9 @@ TEST(RingBuffer, RingBuffer)
 
   rb1[0] = 9;
   // check circle-ness
-  EXPECT_EQ(9u, rb1[rb1.Size()]);
-  EXPECT_EQ(9u, rb1[rb1.Size() * 2]);
+  EXPECT_EQ(9u, rb1[rb1.MaxSize()]);
+  EXPECT_EQ(9u, rb1[rb1.MaxSize() * 2]);
 
-  rb1[rb1.Size()] = 5;
+  rb1[rb1.MaxSize()] = 5;
   EXPECT_EQ(5u, rb1[0]);
 }
