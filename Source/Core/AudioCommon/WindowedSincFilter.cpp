@@ -4,11 +4,15 @@
 
 #include "AudioCommon/WindowedSincFilter.h"
 
+// makes sure num_crossings is odd; there are no restrictions on samples_per_crossing
+// cutoff frequency must be below nyquist (which we are counting as 1.0)
 WindowedSincFilter::WindowedSincFilter(u32 num_crossings = 17, u32 samples_per_crossing = 512,
                                        float cutoff_cycle = 0.5, float beta = 7.0)
-  : BaseFilter((num_crossings - 1) / 2), m_num_crossings(num_crossings),
+  : BaseFilter((num_crossings - (num_crossings % 2)) / 2),
+	m_num_crossings(num_crossings + (num_crossings % 2)),
     m_samples_per_crossing(samples_per_crossing),
-    m_wing_size(samples_per_crossing * (num_crossings - 1) / 2), m_cutoff_cycle(cutoff_cycle),
+    m_wing_size(samples_per_crossing * (num_crossings - (num_crossings % 2)) / 2),
+	m_cutoff_cycle(std::min(cutoff_cycle, 1.f)),
     m_kaiser_beta(beta)
 {
   m_coeffs.resize(m_wing_size);

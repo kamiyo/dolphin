@@ -11,17 +11,29 @@
 
 TEST(RingBuffer, RingBuffer)
 {
+  //check 0-sized ringbuffer
   RingBuffer<u32> rb;
 
   EXPECT_EQ(0u, rb.MaxSize());
   EXPECT_EQ(0u, rb.LoadHead());
   EXPECT_EQ(0u, rb.LoadTail());
 
+  // check resize behavior
   rb.Resize(10);
 
   EXPECT_EQ(10u, rb.MaxSize());
+  // should not affect head and tail
+  EXPECT_EQ(0u, rb.LoadHead());
+  EXPECT_EQ(0u, rb.LoadTail());
 
-  RingBuffer<u32> rb1(100000);
+  // check random access and circularity
+  rb[5] = 10;
+  EXPECT_EQ(10u, rb[5]);
+  EXPECT_EQ(rb[5], rb[15]);
+  rb[25] = 1;
+  EXPECT_EQ(1u, rb[5]);
+
+  // start here CODING
 
   std::array<u32, 50000> data{};
   rb1.Write(data.data(), data.size());
