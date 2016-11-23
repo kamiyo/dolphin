@@ -58,7 +58,7 @@ public:
   // does nothing if trying to move head before tail
   void StoreHead(const size_t pos)
   {
-	size_t tail = m_tail.load();
+  size_t tail = m_tail.load();
     if (pos >= tail && (pos - tail) < m_max_size)
       m_head.store(pos);
   }

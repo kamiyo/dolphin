@@ -32,7 +32,7 @@ CMixer::CMixer(u32 BackendSampleRate) : m_output_sample_rate(BackendSampleRate)
 }
 
 
-CMixer::MixerFifo::MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter = nullptr)
+CMixer::MixerFifo::MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter)
   : m_mixer(mixer), m_filter(std::move(filter)), m_input_sample_rate(sample_rate)
 {
   m_floats.Resize(MAX_SAMPLES * 2);

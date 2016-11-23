@@ -21,7 +21,6 @@
 //				   low:    < 17
 //				   medium: between 17 and 35
 //				   high:   > 35
-//				
 //
 // samples_per_crossing: affects the accuracy of the filter response; this is dependent
 //                       on the bit-length of each filter sample. samples_per_crossing
@@ -34,6 +33,8 @@
 //
 // see ccrma.standford.edu/~jos/resample/
 // CCRMA uses 27 taps x 512 samples for high quality.
+//
+// cutoff_cycle: the center of the transition band (0.5 gives samperate / 2).
 //
 // All combined, these default parameters give a filter with -80db stopband attenuation and a transition
 // width of about 0.5 the nyquist frequency centered on the nyquist frequency
@@ -62,7 +63,7 @@ private:
   void DownSampleStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
                         const float fraction, const float ratio) const;
 
-  // cutoff frequency (ratio of nyquist frequency)
+  // cutoff frequency (ratio of samplerate)
   const float m_cutoff_cycle;
   const float m_kaiser_beta;
 
