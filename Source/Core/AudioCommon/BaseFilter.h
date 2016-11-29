@@ -12,7 +12,7 @@ public:
   BaseFilter(u32 taps = 0);
   virtual ~BaseFilter() = default;
   // ratio is out_rate / in_rate
-  virtual void ConvolveStereo(const RingBuffer<float>& input, u32 index, float* output_l,
+  virtual void ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l,
                               float* output_r, float fraction, float ratio) const = 0;
 
   u32 GetNumTaps() const;

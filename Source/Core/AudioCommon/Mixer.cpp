@@ -15,7 +15,6 @@
 #include "Common/Logging/Log.h"
 #include "Common/MathUtil.h"
 #include "Core/ConfigManager.h"
-#include "Core/HW/Wiimote.h"
 
 CMixer::CMixer(u32 BackendSampleRate) : m_output_sample_rate(BackendSampleRate)
 {
@@ -30,6 +29,8 @@ CMixer::CMixer(u32 BackendSampleRate) : m_output_sample_rate(BackendSampleRate)
 
   INFO_LOG(AUDIO_INTERFACE, "Mixer is initialized");
 }
+
+CMixer::~CMixer() {}
 
 
 CMixer::MixerFifo::MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter)
@@ -52,8 +53,8 @@ u32 CMixer::MixerFifo::Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numS
   // so we will just ignore new written data while interpolating.
   // Without this cache, the compiler wouldn't be allowed to optimize the
   // interpolation loop.
-  u32 indexR = m_shorts.LoadTail();
-  u32 indexW = m_shorts.LoadHead();
+  size_t indexR = m_shorts.LoadTail();
+  size_t indexW = m_shorts.LoadHead();
 
   u32 low_waterwark = m_input_sample_rate * SConfig::GetInstance().iTimingVariance / 1000;
   low_waterwark = std::min(low_waterwark, MAX_SAMPLES / 2);
@@ -79,7 +80,7 @@ u32 CMixer::MixerFifo::Mix(std::array<float, MAX_SAMPLES * 2>& samples, u32 numS
   float lvolume = static_cast<float>(m_LVolume.load() / 256.f);
   float rvolume = static_cast<float>(m_RVolume.load() / 256.f);
 
-  u32 floatI = m_floats.LoadHead();
+  size_t floatI = m_floats.LoadHead();
 
   // Since we know that samples come in two-channel pairs,
   // might as well unroll a bit

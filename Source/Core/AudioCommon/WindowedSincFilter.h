@@ -46,7 +46,7 @@ public:
                      float cutoff_cycle = 0.5, float beta = 8.0);
 
   ~WindowedSincFilter() = default;
-  void ConvolveStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
+  void ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                       float fraction, float ratio) const override;
 
 private:
@@ -58,9 +58,9 @@ private:
   double ModBesselZeroth(const double x) const;
 
   // upsampling is a bit simpler than downsampling so clearer to split into two functions
-  void UpSampleStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
+  void UpSampleStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                       const float fraction) const;
-  void DownSampleStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
+  void DownSampleStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                         const float fraction, const float ratio) const;
 
   // cutoff frequency (ratio of samplerate)

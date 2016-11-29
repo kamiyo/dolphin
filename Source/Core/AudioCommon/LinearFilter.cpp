@@ -6,7 +6,7 @@
 
 LinearFilter::LinearFilter() : BaseFilter(1) {}
 
-void LinearFilter::ConvolveStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
+void LinearFilter::ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
   const float fraction, const float ratio) const
 {
   float l1 = input[index - 2];

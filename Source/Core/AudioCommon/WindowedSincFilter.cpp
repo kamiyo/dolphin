@@ -79,7 +79,7 @@ void WindowedSincFilter::PopulateFilterCoeffs()
   }
 }
 
-void WindowedSincFilter::ConvolveStereo(const RingBuffer<float>& input, u32 index, float* output_l,
+void WindowedSincFilter::ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l,
                                         float* output_r, const float fraction,
                                         const float ratio) const
 {
@@ -89,7 +89,7 @@ void WindowedSincFilter::ConvolveStereo(const RingBuffer<float>& input, u32 inde
     DownSampleStereo(input, index, output_l, output_r, fraction, ratio);
 }
 
-void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 index, float* output_l,
+void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, size_t index, float* output_l,
                                         float* output_r, const float fraction) const
 {
   float left_channel = 0.0;
@@ -97,10 +97,10 @@ void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 inde
 
   // Convolve left wing first
   float left_frac = (fraction * m_samples_per_crossing);
-  u32 left_index = static_cast<u32>(left_frac);
+  size_t left_index = static_cast<size_t>(left_frac);
   left_frac -= static_cast<float>(left_index);
 
-  u32 current_index = index - m_num_taps;
+  size_t current_index = index - m_num_taps;
 
   for (; left_index < m_wing_size; left_index += m_samples_per_crossing, current_index -= 2)
   {
@@ -112,7 +112,7 @@ void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 inde
   }
 
   float right_frac = 0.f;
-  u32 right_index = 0;
+  size_t right_index = 0;
   if (fraction == 0.f)
   {
     right_frac = 0.f;
@@ -121,7 +121,7 @@ void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 inde
   else
   {
     right_frac = (1 - fraction) * m_samples_per_crossing;
-    right_index = static_cast<u32>(right_frac);
+    right_index = static_cast<size_t>(right_frac);
     right_frac -= static_cast<float>(right_index);
   }
 
@@ -140,7 +140,7 @@ void WindowedSincFilter::UpSampleStereo(const RingBuffer<float>& input, u32 inde
   *output_r = right_channel;
 }
 
-void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 index,
+void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, size_t index,
                                           float* output_l, float* output_r, const float fraction,
                                           const float ratio) const
 {
@@ -149,10 +149,10 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
 
   float left_frac = (fraction * m_samples_per_crossing);
   left_frac *= ratio;
-  u32 left_index = static_cast<u32>(left_frac);
+  size_t left_index = static_cast<size_t>(left_frac);
   left_frac -= static_cast<float>(left_index);
 
-  u32 current_index = index - m_num_taps;
+  size_t current_index = index - m_num_taps;
 
   for (; left_index < m_wing_size; current_index -= 2)
   {
@@ -164,23 +164,23 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
 
     left_frac += static_cast<float>(left_index);
     left_frac += ratio * static_cast<float>(m_samples_per_crossing);
-    left_index = static_cast<u32>(left_frac);
+    left_index = static_cast<size_t>(left_frac);
     left_frac -= static_cast<float>(left_index);
   }
 
   float right_frac = 0.f;
-  u32 right_index = 0;
+  size_t right_index = 0;
   if (fraction == 0.f)
   {
     right_frac = ratio * m_samples_per_crossing;
-    right_index = static_cast<u32>(right_index);
+    right_index = static_cast<size_t>(right_index);
     right_frac -= static_cast<float>(right_index);
   }
   else
   {
     right_frac = (1 - fraction) * m_samples_per_crossing;
     right_frac *= ratio;
-    right_index = static_cast<u32>(right_frac);
+    right_index = static_cast<size_t>(right_frac);
     right_frac -= static_cast<float>(right_index);
   }
 
@@ -196,7 +196,7 @@ void WindowedSincFilter::DownSampleStereo(const RingBuffer<float>& input, u32 in
 
     right_frac += static_cast<float>(right_index);
     right_frac += ratio * static_cast<float>(m_samples_per_crossing);
-    right_index = static_cast<u32>(right_frac);
+    right_index = static_cast<size_t>(right_frac);
     right_frac -= static_cast<float>(right_index);
   }
 

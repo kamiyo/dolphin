@@ -11,7 +11,7 @@ class LinearFilter final : public BaseFilter
 public:
   LinearFilter();
   ~LinearFilter() = default;
-  void ConvolveStereo(const RingBuffer<float>& input, u32 index, float* output_l, float* output_r,
+  void ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                       float fraction, float ratio) const override;
 
 private:

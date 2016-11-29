@@ -30,11 +30,11 @@ TEST(RingBuffer, RingBuffer)
   // writes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   // and then writes: [0, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110]
   for (size_t i = 0; i < rb.MaxSize(); i++) {
-	  rb[i] = i;
-	  EXPECT_EQ(static_cast<u32>(i), rb[i]);
-	  EXPECT_EQ(static_cast<u32>(i), rb[i + rb.MaxSize() * i]);
-	  rb[i + rb.MaxSize() * i] = i + rb.MaxSize() * i;
-	  EXPECT_EQ(static_cast<u32>(i + rb.MaxSize() * i), rb[i]);
+    rb[i] = static_cast<u32>(i);
+    EXPECT_EQ(static_cast<u32>(i), rb[i]);
+    EXPECT_EQ(static_cast<u32>(i), rb[i + rb.MaxSize() * i]);
+    rb[i + rb.MaxSize() * i] = static_cast<u32>(i + rb.MaxSize() * i);
+    EXPECT_EQ(static_cast<u32>(i + rb.MaxSize() * i), rb[i]);
   }
   // should not affect head and tail
   EXPECT_EQ(0u, rb.LoadHead());
