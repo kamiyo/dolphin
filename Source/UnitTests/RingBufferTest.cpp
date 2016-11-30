@@ -11,10 +11,9 @@
 
 TEST(RingBuffer, RingBuffer)
 {
-  //check 0-sized ringbuffer
+  //check unitialized ringbuffer
   RingBuffer<u32> rb;
 
-  EXPECT_EQ(0u, rb.MaxSize());
   EXPECT_EQ(0u, rb.LoadHead());
   EXPECT_EQ(0u, rb.LoadTail());
 
@@ -29,7 +28,7 @@ TEST(RingBuffer, RingBuffer)
   // check random access and circularity
   // writes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   // and then writes: [0, 11, 22, 33, 44, 55, 66, 77, 88, 99, 110]
-  for (size_t i = 0; i < rb.MaxSize(); i++) {
+  for (size_t i = 0; i < rb.MaxSize(); ++i) {
     rb[i] = static_cast<u32>(i);
     EXPECT_EQ(static_cast<u32>(i), rb[i]);
     EXPECT_EQ(static_cast<u32>(i), rb[i + rb.MaxSize() * i]);
@@ -43,10 +42,14 @@ TEST(RingBuffer, RingBuffer)
   // 0s the array
   // we don't need to reset head and tail because they haven't been moved
   std::fill_n(&rb[0], rb.MaxSize(), 0);
+  // should be zeroes
 
-  std::array<u32, 20> ones{ 1 };
-  std::array<u32, 20> twos{ 2 };
-  std::array<u32, 20> threes{ 3 };
+  std::array<u32, 20> ones;
+  std::array<u32, 20> twos;
+  std::array<u32, 20> threes;
+  std::fill_n(ones.begin(), ones.size(), 1);
+  std::fill_n(twos.begin(), ones.size(), 2);
+  std::fill_n(threes.begin(), ones.size(), 3);
 
   // write 5 items, check
   // should be: [1, 1, 1, 1, 1, 0, 0, 0, 0, 0]

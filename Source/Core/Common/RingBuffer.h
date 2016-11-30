@@ -31,12 +31,12 @@ public:
   }
 
   T& operator[](size_t pos) { return m_data[pos % m_max_size]; }
-  const T& operator[](size_t pos) const { return m_data[pos % m_max_size]; }
+  const T operator[](size_t pos) const { return m_data[pos % m_max_size]; }
   // will only write up to tail if write size is too large
   void Write(const T* source, size_t length)
   {
     size_t head = m_head.load();
-    size_t adjusted = std::min(length + (head - m_tail.load()), m_max_size);
+    size_t adjusted = std::min(length, m_max_size - (head - m_tail.load()));
     // calculate if we need wraparound
     signed long long over = adjusted - (m_max_size - (head % m_max_size));
 
