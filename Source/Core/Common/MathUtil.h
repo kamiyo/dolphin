@@ -217,7 +217,8 @@ inline int IntLog2(u64 val)
 #endif
 }
 
-// gets next number that is a power of 2
+// returns a number greater than or equal to val that is also a power of 2.
+// 0 technically undefined, but return 0.
 inline u64 NextIntPow2(u64 val)
 {
   return (val <= 1) ? val : (1i64 << (IntLog2(val - 1) + 1));

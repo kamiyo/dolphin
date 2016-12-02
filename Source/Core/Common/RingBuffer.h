@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstring>
 #include <vector>
+
 #include "Common/MathUtil.h"
 
 // Simple Ring Buffer class.
@@ -37,14 +38,13 @@ public:
   T& operator[](size_t pos) { return m_data[pos & m_mask]; }
   const T operator[](size_t pos) const { return m_data[pos & m_mask]; }
 
-  // will only write up to tail if write size is too large
+  // will only write up to tail if write length is too big
   void Write(const T* source, size_t length)
   {
     size_t head = m_head.load();
     size_t adjusted = std::min(length, m_max_size - (head - m_tail.load()));
     // calculate if we need wraparound
     signed long long over = adjusted - (m_max_size - (head & m_mask));
-
     if (over > 0)
     {
       memcpy(&m_data[head & m_mask], source, (adjusted - over) * sizeof(T));
@@ -54,7 +54,6 @@ public:
     {
       memcpy(&m_data[head & m_mask], source, adjusted * sizeof(T));
     }
-
     m_head.fetch_add(adjusted);
   }
 

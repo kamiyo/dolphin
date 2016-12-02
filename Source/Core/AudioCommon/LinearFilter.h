@@ -13,7 +13,6 @@ public:
   ~LinearFilter() = default;
   void ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                       float fraction, float ratio) const override;
-
 private:
   static float Lerp(float sample1, float sample2, float fraction);
 };

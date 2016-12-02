@@ -127,6 +127,7 @@ void WaveFileWriter::AddStereoSamples(const short* sample_data, u32 count, int s
     }
   }
   else {
+    //memcpy(conv_buffer.data(), sample_data, sizeof(short) * count * 2);
     for (u32 i = 0; i < count * 2; i++)
     {
       conv_buffer[i] = sample_data[i];

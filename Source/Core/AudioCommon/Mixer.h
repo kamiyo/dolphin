@@ -20,7 +20,6 @@ class CMixer final
 public:
   explicit CMixer(u32 BackendSampleRate);
   ~CMixer();
-  //~CMixer() = default;
   // Called from audio threads
   u32 Mix(s16* samples, u32 numSamples, bool consider_framelimit = true);
 
@@ -84,8 +83,8 @@ private:
 
   std::unique_ptr<MixerFifo> m_dma_mixer;
   std::unique_ptr<MixerFifo> m_streaming_mixer;
-  std::array<std::unique_ptr<MixerFifo>, 4>
-      m_wiimote_speaker_mixers;  // max # wiimotes = 4, one mixer per wiimote
+  // max # wiimotes = 4, one mixer per wiimote
+  std::array<std::unique_ptr<MixerFifo>, 4> m_wiimote_speaker_mixers;
   std::unique_ptr<Dither> m_dither;
   std::shared_ptr<BaseFilter> m_linear_filter;
 

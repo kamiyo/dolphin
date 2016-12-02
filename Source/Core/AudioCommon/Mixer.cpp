@@ -37,7 +37,6 @@ CMixer::CMixer(u32 BackendSampleRate) : m_output_sample_rate(BackendSampleRate)
 
 CMixer::~CMixer() {}
 
-
 CMixer::MixerFifo::MixerFifo(CMixer* mixer, unsigned sample_rate, std::shared_ptr<BaseFilter> filter)
   : m_mixer(mixer), m_filter(std::move(filter)), m_input_sample_rate(sample_rate)
 {
@@ -171,7 +170,6 @@ void CMixer::PushSamples(const s16* samples, u32 num_samples)
 
 void CMixer::PushStreamingSamples(const s16* samples, u32 num_samples)
 {
-  if (num_samples != 0) WARN_LOG(AUDIO, "pushing streaming");
   m_streaming_mixer->PushSamples(samples, num_samples);
   int sample_rate = m_streaming_mixer->GetInputSampleRate();
   if (m_log_dtk_audio)

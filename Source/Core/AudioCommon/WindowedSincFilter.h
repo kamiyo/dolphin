@@ -8,6 +8,7 @@
 
 #include "AudioCommon/BaseFilter.h"
 #include "Common/CommonTypes.h"
+
 // Creates kaiser-windowed ideal lowpass filter
 // Generates and stores only one side of the impulse response as it is symmetrical.
 // Thus, when performing convolution, first apply the filter as is stored to samples
@@ -40,17 +41,14 @@
 //
 // cutoff_cycle: the center of the transition band (in terms of nyquist = samplerate/2);
 //               1.0 gives center of nyquist freq.
-
 class WindowedSincFilter final : public BaseFilter
 {
 public:
   WindowedSincFilter(u32 num_crossings, u32 samples_per_crossing, float cutoff_cycle,
                      float beta);
-
   ~WindowedSincFilter() = default;
   void ConvolveStereo(const RingBuffer<float>& input, size_t index, float* output_l, float* output_r,
                       float fraction, float ratio) const override;
-
 private:
   static constexpr double BESSEL_EPSILON = 1e-21;
   static constexpr double PI = 3.14159265358979323846;

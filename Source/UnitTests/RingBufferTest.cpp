@@ -16,11 +16,17 @@ TEST(RingBuffer, RingBuffer)
   EXPECT_EQ(0u, rb.LoadHead());
   EXPECT_EQ(0u, rb.LoadTail());
 
-  // check resize behavior
-  rb.Resize(10);
+  // check resize behavior for a few numbers (and round to next power of 2 size)
+  std::array<size_t, 3> query_sizes{ {1000, 512, 10} };
+  std::array<size_t, 3> actual_sizes{ {1024, 512, 16} };
+  for (size_t i = 0; i < query_sizes.size(); ++i)
+  {
+    rb.Resize(query_sizes[i]);
+    EXPECT_EQ(actual_sizes[i], rb.MaxSize());
+    EXPECT_EQ(actual_sizes[i] - 1, rb.Mask());
+  }
 
-  EXPECT_EQ(16u, rb.MaxSize());
-  // should not affect head and tail
+  // resize should keep head and tail at 0
   EXPECT_EQ(0u, rb.LoadHead());
   EXPECT_EQ(0u, rb.LoadTail());
 
