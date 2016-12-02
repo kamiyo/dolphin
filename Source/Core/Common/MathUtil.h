@@ -217,6 +217,12 @@ inline int IntLog2(u64 val)
 #endif
 }
 
+// gets next number that is a power of 2
+inline u64 NextIntPow2(u64 val)
+{
+  return (val <= 1) ? val : (1i64 << (IntLog2(val - 1) + 1));
+}
+
 // Tiny matrix/vector library.
 // Used for things like Free-Look in the gfx backend.
 

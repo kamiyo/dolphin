@@ -41,6 +41,9 @@ public:
   void StartLogDSPAudio(const std::string& filename);
   void StopLogDSPAudio();
 
+  void StartLogMixAudio(const std::string& filename);
+  void StopLogMixAudio();
+
   float GetCurrentSpeed() const { return m_speed.load(); }
   void UpdateSpeed(float val) { m_speed.store(val); }
 private:
@@ -88,10 +91,11 @@ private:
 
   WaveFileWriter m_wave_writer_dtk;
   WaveFileWriter m_wave_writer_dsp;
-  WaveFileWriter m_wave_writer_debug;
+  WaveFileWriter m_wave_writer_mix;
 
   bool m_log_dtk_audio = false;
   bool m_log_dsp_audio = false;
+  bool m_log_mix_audio = false;
 
   u32 m_output_sample_rate;
   // Current rate of emulation (1.0 = 100% speed)

@@ -126,6 +126,12 @@ void WaveFileWriter::AddStereoSamples(const short* sample_data, u32 count, int s
       conv_buffer[2 * i + 1] = Common::swap16((u16)sample_data[2 * i]);
     }
   }
+  else {
+    for (u32 i = 0; i < count * 2; i++)
+    {
+      conv_buffer[i] = sample_data[i];
+    }
+  }
 
   if (sample_rate != current_sample_rate)
   {

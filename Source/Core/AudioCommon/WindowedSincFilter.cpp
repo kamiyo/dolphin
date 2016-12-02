@@ -8,10 +8,10 @@
 // cutoff frequency must be below nyquist (which we are counting as 1.0)
 WindowedSincFilter::WindowedSincFilter(u32 num_crossings, u32 samples_per_crossing,
                                        float cutoff_cycle, float beta)
-  : BaseFilter((num_crossings - (num_crossings % 2)) / 2),
-    m_num_crossings(num_crossings + (num_crossings % 2)),
+  : BaseFilter(num_crossings / 2),
+    m_num_crossings(num_crossings + !(num_crossings % 1)),
     m_samples_per_crossing(samples_per_crossing),
-    m_wing_size(samples_per_crossing * (num_crossings - (num_crossings % 2)) / 2),
+    m_wing_size(samples_per_crossing * (num_crossings / 2)),
     m_cutoff_cycle(std::min(cutoff_cycle, 1.f)),
     m_kaiser_beta(beta)
 {
